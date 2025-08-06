@@ -26,9 +26,3 @@ function switchNightMode() {
   typeof FB === 'object' && window.loadFBComment()
   window.DISQUS && document.getElementById('disqus_thread').children.length && setTimeout(() => window.disqusReset(), 200)
 }
-
-
-作者: 百里飞洋 Barry-Flynn
-链接: https://blog.meta-code.top/2022/06/19/2022-74/
-来源: 百里飞洋
-著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。
