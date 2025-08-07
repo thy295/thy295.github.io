@@ -1,0 +1,272 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>后渗透基础1-路由转发 | HackerT的博客</title><meta name="author" content="HackerT,hackert12138@gmail.com"><meta name="copyright" content="HackerT"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="一、路由转发简介 1.路由转发是什么 路由转发（IP Forwarding）是计算机网络中的核心机制，指路由器或具备路由功能的设备根据路由表将接收到的数据包转发到目标网络。 2.核心概念  路由表（Routing Table）： 存储网络地址与下一跳信息的表格，决定数据包的转发路径。 目标网络          下一跳IP          接口             标记192.168.1.0">
+<meta property="og:type" content="article">
+<meta property="og:title" content="后渗透基础1-路由转发">
+<meta property="og:url" content="http://example.com/2025/08/07/%E5%90%8E%E6%B8%97%E9%80%8F%E5%9F%BA%E7%A1%801-%E8%B7%AF%E7%94%B1%E8%BD%AC%E5%8F%91/index.html">
+<meta property="og:site_name" content="HackerT的博客">
+<meta property="og:description" content="一、路由转发简介 1.路由转发是什么 路由转发（IP Forwarding）是计算机网络中的核心机制，指路由器或具备路由功能的设备根据路由表将接收到的数据包转发到目标网络。 2.核心概念  路由表（Routing Table）： 存储网络地址与下一跳信息的表格，决定数据包的转发路径。 目标网络          下一跳IP          接口             标记192.168.1.0">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://example.com/img/touxiang.png">
+<meta property="article:published_time" content="2025-08-07T06:31:19.000Z">
+<meta property="article:modified_time" content="2025-08-07T08:09:04.858Z">
+<meta property="article:author" content="HackerT">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://example.com/img/touxiang.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "后渗透基础1-路由转发",
+  "url": "http://example.com/2025/08/07/%E5%90%8E%E6%B8%97%E9%80%8F%E5%9F%BA%E7%A1%801-%E8%B7%AF%E7%94%B1%E8%BD%AC%E5%8F%91/",
+  "image": "http://example.com/img/touxiang.png",
+  "datePublished": "2025-08-07T06:31:19.000Z",
+  "dateModified": "2025-08-07T08:09:04.858Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "HackerT",
+      "url": "http://example.com"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/tubiao.png"><link rel="canonical" href="http://example.com/2025/08/07/%E5%90%8E%E6%B8%97%E9%80%8F%E5%9F%BA%E7%A1%801-%E8%B7%AF%E7%94%B1%E8%BD%AC%E5%8F%91/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":false},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '后渗透基础1-路由转发',
+  isHighlightShrink: false,
+  isToc: false,
+  pageType: 'post'
+}</script><svg aria-hidden="true" style="position:absolute; overflow:hidden; width:0; height:0"><symbol id="icon-sun" viewBox="0 0 1024 1024"><path d="M960 512l-128 128v192h-192l-128 128-128-128H192v-192l-128-128 128-128V192h192l128-128 128 128h192v192z" fill="#FFD878" p-id="8420"></path><path d="M736 512a224 224 0 1 0-448 0 224 224 0 1 0 448 0z" fill="#FFE4A9" p-id="8421"></path><path d="M512 109.248L626.752 224H800v173.248L914.752 512 800 626.752V800h-173.248L512 914.752 397.248 800H224v-173.248L109.248 512 224 397.248V224h173.248L512 109.248M512 64l-128 128H192v192l-128 128 128 128v192h192l128 128 128-128h192v-192l128-128-128-128V192h-192l-128-128z" fill="#4D5152" p-id="8422"></path><path d="M512 320c105.888 0 192 86.112 192 192s-86.112 192-192 192-192-86.112-192-192 86.112-192 192-192m0-32a224 224 0 1 0 0 448 224 224 0 0 0 0-448z" fill="#4D5152" p-id="8423"></path></symbol><symbol id="icon-moon" viewBox="0 0 1024 1024"><path d="M611.370667 167.082667a445.013333 445.013333 0 0 1-38.4 161.834666 477.824 477.824 0 0 1-244.736 244.394667 445.141333 445.141333 0 0 1-161.109334 38.058667 85.077333 85.077333 0 0 0-65.066666 135.722666A462.08 462.08 0 1 0 747.093333 102.058667a85.077333 85.077333 0 0 0-135.722666 65.024z" fill="#FFB531" p-id="11345"></path><path d="M329.728 274.133333l35.157333-35.157333a21.333333 21.333333 0 1 0-30.165333-30.165333l-35.157333 35.157333-35.114667-35.157333a21.333333 21.333333 0 0 0-30.165333 30.165333l35.114666 35.157333-35.114666 35.157334a21.333333 21.333333 0 1 0 30.165333 30.165333l35.114667-35.157333 35.157333 35.157333a21.333333 21.333333 0 1 0 30.165333-30.165333z" fill="#030835" p-id="11346"></path></symbol></svg><meta name="generator" content="Hexo 7.3.0"></head><body><div id="web_bg" style="background: img\background.jpg;"></div><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/loading.gif" data-original="/img/touxiang.png" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">7</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">0</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">0</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 主页</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fa fa-archive"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fa fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fa fa-folder-open"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/about/"><i class="fa-fw fas fa-heart"></i><span> 关于</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">HackerT的博客</span></a><a class="nav-page-title" href="/"><span class="site-name">后渗透基础1-路由转发</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 主页</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fa fa-archive"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fa fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fa fa-folder-open"></i><span> 归档</span></a></div><div class="menus_item"><a class="site-page" href="/about/"><i class="fa-fw fas fa-heart"></i><span> 关于</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">后渗透基础1-路由转发</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2025-08-07T06:31:19.000Z" title="发表于 2025-08-07 14:31:19">2025-08-07</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2025-08-07T08:09:04.858Z" title="更新于 2025-08-07 16:09:04">2025-08-07</time></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><p>一、路由转发简介</p>
+<p>1.路由转发是什么</p>
+<p>路由转发（IP Forwarding）是计算机网络中的核心机制，指路由器或具备路由功能的设备根据路由表将接收到的数据包转发到目标网络。</p>
+<p>2.核心概念</p>
+<ul>
+<li><p>路由表（Routing Table）：</p>
+<p>存储网络地址与下一跳信息的表格，决定数据包的转发路径。</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">目标网络          下一跳IP          接口             标记</span><br><span class="line">192.168.1.0/24   10.0.0.1         eth0             UG</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>下一跳（Next Hop）：</p>
+<p>数据包转发的下一个设备或网关的 IP 地址。</p>
+</li>
+<li><p>路由协议（如 OSPF、BGP）：</p>
+<p>动态更新路由表的协议，适用于大型网络（如企业网或互联网）</p>
+</li>
+</ul>
+<p>3.工作流程</p>
+<p>当一个网络设备收到一个数据包时，会查看源ip和目的ip，查看目标网络是否在自己的路由表里面，如果在，则将接收到的数据包转发给下一跳地址，下一跳设备接收到数据包时，重复上述操作，直到数据包转发到目的ip。</p>
+<p>4.配置方法</p>
+<p>linux系统使用命令配置</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment">#查看路由表</span></span><br><span class="line">ip route show</span><br><span class="line"></span><br><span class="line"><span class="comment">#添加静态路由</span></span><br><span class="line">ip route add 192.168.10.0/24 via 10.0.0.1 dev eth1</span><br><span class="line"></span><br><span class="line">ip route add：表示添加一项路由条目</span><br><span class="line">192.168.10.0/24：表示目标网络，子网掩码是24</span><br><span class="line">via 10.0.0.1：表示下一跳地址是10.0.0.1</span><br><span class="line">dev eth1：表示网络设备接口是dev eth1</span><br><span class="line"></span><br><span class="line"><span class="comment">#删除路由</span></span><br><span class="line">ip route del 192.168.2.0/24</span><br></pre></td></tr></table></figure>
+
+<p>配置文件持久化</p>
+<p>路径： &#x2F;etc&#x2F;sysconfig&#x2F;network-scripts&#x2F;route-eth0 （针对接口 eth0 ）或&#x2F;etc&#x2F;sysconfig&#x2F;network-scripts&#x2F;ifcfg-ensxx</p>
+<p>添加内容</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">to default via 10.0.0.1 dev eth0 <span class="comment">#表示去往默认路由的下一跳地址是10.0.0.1</span></span><br><span class="line">to 192.168.2.0/24 via 10.0.0.2 dev eth1  <span class="comment">#表示去往192.168.2.0/24网段的下一跳地址是10.0.0.2</span></span><br></pre></td></tr></table></figure>
+
+<p>二、虚拟机网络连接方式</p>
+<p>想要在虚拟机上完成路由转发案例，我们先了解一下虚拟机的网络连接方式</p>
+<p>1.NAT（网络地址转换）模式</p>
+<p>你的物理机相当于虚拟机的网关，虚拟机可以通过物理机来访问外部网络，但是外部网络无法直接访问虚拟机，就相当于你的物理机作为你虚拟机的路由器。</p>
+<p>2.桥接模式</p>
+<p>这个模式下，虚拟机就相当于一台真实主机，可以与外部网络进行通信，具有自己的ip地址，虚拟机的网络适配器与你物理机的网卡相连接，相当于与你物理机处于同一水平线。</p>
+<p>3.仅主机模式</p>
+<p>虚拟机完全隔离于外部网络，只能与你物理机进行通信。</p>
+<p>三、网络配置</p>
+<p>1.网络管理器（NetworkManager）</p>
+<p>网络管理器（NetworkManager）是一个动态网络的控制器与配置系统，它用于当网络设备可用时保持设备和连接开启并激活。</p>
+<p>CentOS8 默认安装网络管理器，并处于启用状态。</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment">#查看网络管理程序状态</span></span><br><span class="line">systemctl status NetworkManager</span><br></pre></td></tr></table></figure>
+
+<p>2.网络配置方法</p>
+<p>①修改文件配置</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">/etc/sysconfig/network-scripts目录下</span><br><span class="line"></span><br><span class="line"><span class="comment">#编辑配置文件，如</span></span><br><span class="line">vim /etc/sysconfig/network-scripts/ifcfg-ens168</span><br><span class="line"></span><br><span class="line"><span class="comment">#incfg-ens168就是你centos系统网卡对应的网络配置文件</span></span><br><span class="line"><span class="comment">#以下是所需要配置的参数</span></span><br><span class="line">TYPE=Ethernet              <span class="comment">#接口类型</span></span><br><span class="line">DEVICE=ens160              <span class="comment">#设备名称，你网卡的名称</span></span><br><span class="line">ONBOOT=<span class="built_in">yes</span>                 <span class="comment">#开机自启，no是不自启</span></span><br><span class="line">BOOTPROTO=static           <span class="comment">#获取ip方式，static是静态ip，还有DHCP方式</span></span><br><span class="line">IPADDR=192.168.2.254       <span class="comment">#你分配的ip地址</span></span><br><span class="line">NETMAK=255.255.255.0       <span class="comment">#子网掩码</span></span><br><span class="line">GATEWAY=192.168.2.1        <span class="comment">#网关</span></span><br><span class="line">DNS1=114.114.114.114       <span class="comment">#DNS</span></span><br><span class="line">DNS2=8.8.8.8</span><br><span class="line">DEFROUTE=<span class="built_in">yes</span>               <span class="comment">#默认路由</span></span><br></pre></td></tr></table></figure>
+
+<p>②命令配置</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">nmcli</span><br><span class="line"></span><br><span class="line"><span class="comment">#查看网络连接</span></span><br><span class="line">nmcli connection show</span><br><span class="line"></span><br><span class="line"><span class="comment">#启用接口</span></span><br><span class="line">nmcli connection up ensxxx</span><br><span class="line"></span><br><span class="line"><span class="comment">#禁用接口</span></span><br><span class="line">nmcli connection down ensxxx</span><br><span class="line"></span><br><span class="line"><span class="comment">#配置静态ip</span></span><br><span class="line">nmcli connection modify ensxxx \</span><br><span class="line">  <span class="built_in">type</span> ethernet \</span><br><span class="line">  ip4 192.168.1.100/24 \</span><br><span class="line">  gateway4 192.168.1.1 \</span><br><span class="line">  dns <span class="string">&quot;8.8.8.8;8.8.4.4&quot;</span></span><br><span class="line"> </span><br><span class="line"><span class="comment">#配置DHCP</span></span><br><span class="line">nmcli connection modify ens160 \</span><br><span class="line">  <span class="built_in">type</span> ethernet \</span><br><span class="line">  ip4 auto dhcp</span><br></pre></td></tr></table></figure>
+
+<p>四、路由转发实验</p>
+<p>1.拓扑说明</p>
+<table>
+<thead>
+<tr>
+<th>操作系统</th>
+<th>网卡</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>windows 10</td>
+<td>vmnet 2（仅主机模式）</td>
+</tr>
+<tr>
+<td>centos 8</td>
+<td>vmnet 2 、 vmnet 3</td>
+</tr>
+<tr>
+<td>kali</td>
+<td>vmnet 3</td>
+</tr>
+</tbody></table>
+<p><img src="/img/loading.gif" data-original="https://raw.githubusercontent.com/thy295/picgo/main/img/20250807153656771.png"></p>
+<p>2.目标</p>
+<p>实现win10与kali能够ping通</p>
+<p>3.实践</p>
+<p>①kali配置ip</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment">#kali网络配置文件在/etc/network目录下有个interfaces文件</span></span><br><span class="line"></span><br><span class="line"><span class="comment">#首先进行源文件的备份</span></span><br><span class="line"><span class="built_in">mv</span> interfaces interfaces.back</span><br><span class="line"></span><br><span class="line"><span class="comment">#新建一个interfaces文件</span></span><br><span class="line">vim /etc/network/interfaces</span><br><span class="line"></span><br><span class="line">auto lo                             </span><br><span class="line">iface lo inet loopback             <span class="comment">#回环</span></span><br><span class="line"></span><br><span class="line">auto eth0                          <span class="comment">#网络接口</span></span><br><span class="line">iface eth0 inet static             <span class="comment">#静态路由</span></span><br><span class="line">     address 172.16.2.1            <span class="comment">#ip地址</span></span><br><span class="line">     netmask 255.255.255.0         <span class="comment">#掩码</span></span><br><span class="line">     gateway 172.16.2.254          <span class="comment">#网关</span></span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="comment">#重启服务</span></span><br><span class="line">systemctl restart networking</span><br></pre></td></tr></table></figure>
+
+<p>②centos双网卡配置</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="comment">#centos配置文件在/etc/sysconfig/network-scripts目录下的ifcfg-ensxxx文件</span></span><br><span class="line"><span class="comment">#双网卡的话就有两个文件</span></span><br><span class="line"></span><br><span class="line"><span class="comment">#备份源配置文件</span></span><br><span class="line"><span class="built_in">mv</span> ifcfg-ens160 ifcfg-ens160.back</span><br><span class="line"><span class="built_in">mv</span> ifcfg-ens160 ifcfg-ens224.back</span><br><span class="line"></span><br><span class="line"><span class="comment">#新建配置文件，因为这里centos相当于路由器，所以不配置网关和掩码</span></span><br><span class="line">vim ifcfg-ens160</span><br><span class="line"></span><br><span class="line">TYPE=Ethernet            <span class="comment">#接口类型</span></span><br><span class="line">DEVICE=ens160            <span class="comment">#网卡名称</span></span><br><span class="line">ONBOOT=<span class="built_in">yes</span>               <span class="comment">#开机自启动</span></span><br><span class="line">BOOTPROTO=static         <span class="comment">#静态ip</span></span><br><span class="line">IPADDR=192.168.2.254     <span class="comment">#ip地址</span></span><br><span class="line">DEFROUTE=<span class="built_in">yes</span>             <span class="comment">#默认路由，主网卡设置</span></span><br><span class="line"></span><br><span class="line">vim ifcfg-ens224</span><br><span class="line"></span><br><span class="line">TYPE=Ethernet</span><br><span class="line">DEVICE=ens224</span><br><span class="line">ONBOOT=<span class="built_in">yes</span></span><br><span class="line">BOOTPROTO=static</span><br><span class="line">IPADDR=172.16.2.254</span><br><span class="line">DEFROUTE=no</span><br><span class="line"></span><br><span class="line"><span class="comment">#重启服务</span></span><br><span class="line">systemctl restart NetworkManager</span><br></pre></td></tr></table></figure>
+
+<p>③win 10配置ip</p>
+<p><img src="/img/loading.gif" data-original="https://raw.githubusercontent.com/thy295/picgo/main/img/20250807155943800.png"></p>
+<p>④测试连通性</p>
+<p>win10无法于kali通信</p>
+<p><img src="/img/loading.gif" data-original="https://raw.githubusercontent.com/thy295/picgo/main/img/20250807160056221.png"></p>
+<p>win10能和centos通信</p>
+<p><img src="/img/loading.gif" data-original="https://raw.githubusercontent.com/thy295/picgo/main/img/20250807160152884.png"></p>
+<p>kali能和centos通信</p>
+<p><img src="/img/loading.gif" data-original="https://raw.githubusercontent.com/thy295/picgo/main/img/20250807160248802.png"></p>
+<p>⑤修改centos配置文件，开启路由转发</p>
+<p>在&#x2F;proc&#x2F;sys&#x2F;net&#x2F;ipv4目录下的ip_forward文件，这个文件默认为0且只读，但是可以通过重定向强制写入</p>
+<figure class="highlight plaintext"><table><tr><td class="code"><pre><span class="line">#0表示关闭，1表示开启</span><br><span class="line">echo 1 &gt; /proc/sys/net/ipv4/ip_forward</span><br></pre></td></tr></table></figure>
+
+<p>此时测试kali能否与win10通信</p>
+<p><img src="/img/loading.gif" data-original="https://raw.githubusercontent.com/thy295/picgo/main/img/20250807160741824.png"></p>
+<p><img src="/img/loading.gif" data-original="https://raw.githubusercontent.com/thy295/picgo/main/img/20250807160820847.png"></p>
+<p>成功互通！！！！！！！</p>
+<p>此章结束！！！！！！！</p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="http://example.com">HackerT</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="http://example.com/2025/08/07/%E5%90%8E%E6%B8%97%E9%80%8F%E5%9F%BA%E7%A1%801-%E8%B7%AF%E7%94%B1%E8%BD%AC%E5%8F%91/">http://example.com/2025/08/07/%E5%90%8E%E6%B8%97%E9%80%8F%E5%9F%BA%E7%A1%801-%E8%B7%AF%E7%94%B1%E8%BD%AC%E5%8F%91/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="http://example.com" target="_blank">HackerT的博客</a>！</span></div></div><div class="tag_share"><div class="post-share"><div class="social-share" data-image="/img/touxiang.png" data-sites="facebook,twitter,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/2025/08/06/linux%E8%AE%A1%E5%88%92%E4%BB%BB%E5%8A%A1/" title="linux计划任务"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">linux计划任务</div></div><div class="info-2"><div class="info-item-1">一、计划任务简介 在特定时间自动执行预先设定的命令和脚本 比如：定期备份，服务器运维，数据更新 二、Linux计划任务工具 1.at 适用场景：一次性&#x2F;延迟任务 时间粒度：秒级 特点：简单、轻量、无需持久化守护进程 基本语法 at 【选项】 时间表达式at支持灵活的时间表述now # 立即执行now + 5min # 5分钟后02:30 tomorrow/today # 次日2:302025-12-31 23:59 # 绝对时间#示例at now +5 minutes#ctrl+d用于提交任务#每个任务都有一个任务ID#查看所有待执行任务atq#删除任务atrm ID#查看任务内容at -C ID    2.cron 适用场景：周期性任务 时间粒度：分钟级 特点：复杂，需长期运行守护进程 ①cron核心功能 cron用于执行周期性任务 适用于以下场景：  定时备份：每日&#x2F;每周自动备份数据。 日志清理：定时删除过期日志文件。 数据同步：每小时同步服务器间数据。 监控报警：检测服务状态并发送通知。  ②配置文件 cron有一个配置文件，是cron的编辑模板，路径为...</div></div></div></a></nav></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/loading.gif" data-original="/img/touxiang.png" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">HackerT</div><div class="author-info-description"></div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">7</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">0</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">0</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/xxxxxx"><i class="fab fa-github"></i><span>Follow Me</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">This is my Blog</div></div><div class="sticky_layout"><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2025/08/07/%E5%90%8E%E6%B8%97%E9%80%8F%E5%9F%BA%E7%A1%801-%E8%B7%AF%E7%94%B1%E8%BD%AC%E5%8F%91/" title="后渗透基础1-路由转发">后渗透基础1-路由转发</a><time datetime="2025-08-07T06:31:19.000Z" title="发表于 2025-08-07 14:31:19">2025-08-07</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2025/08/06/linux%E8%AE%A1%E5%88%92%E4%BB%BB%E5%8A%A1/" title="linux计划任务">linux计划任务</a><time datetime="2025-08-06T08:07:29.000Z" title="发表于 2025-08-06 16:07:29">2025-08-06</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2025/08/06/linux%E8%BF%9B%E7%A8%8B%E7%AE%A1%E7%90%86/" title="linux进程管理">linux进程管理</a><time datetime="2025-08-06T02:44:40.000Z" title="发表于 2025-08-06 10:44:40">2025-08-06</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2025/08/05/%E9%87%8D%E5%AE%9A%E5%90%91%E4%B8%8Ebash%E5%8F%8D%E5%BC%B9/" title="linux重定向与bash反弹">linux重定向与bash反弹</a><time datetime="2025-08-05T07:22:32.000Z" title="发表于 2025-08-05 15:22:32">2025-08-05</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/2025/08/04/linux%E6%90%AD%E5%BB%BAapache%E6%9C%8D%E5%8A%A1%E5%99%A8/" title="linux搭建apache服务器">linux搭建apache服务器</a><time datetime="2025-08-04T07:12:34.000Z" title="发表于 2025-08-04 15:12:34">2025-08-04</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 By HackerT</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 7.3.0</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.4.3</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><a class="icon-V hidden" onclick="switchNightMode()" title="日间和夜间模式切换"><svg width="25" height="25" viewBox="0 0 1024 1024"><use id="modeicon" xlink:href="#icon-moon"></use></svg></a><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js"></script><script src="/js/main.js"></script><div class="js-pjax"></div><script src="/js/sun_moon.js" async></script><script defer="defer" id="fluttering_ribbon" mobile="true" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/canvas-fluttering-ribbon.min.js"></script><script id="canvas_nest" defer="defer" color="0,0,255" opacity="0.7" zIndex="-1" count="99" mobile="false" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc/dist/canvas-nest.min.js"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div>
+        <style>
+            [bg-lazy] {
+                background-image: none !important;
+                background-color: #eee !important;
+            }
+        </style>
+        <script>
+            window.imageLazyLoadSetting = {
+                isSPA: false,
+                preloadRatio: 1,
+                processImages: null,
+            };
+        </script><script>window.addEventListener("load",function(){var t=/\.(gif|jpg|jpeg|tiff|png)$/i,r=/^data:image\/[a-z\d\-\.\+]+;base64,/;Array.prototype.slice.call(document.querySelectorAll("img[data-original]")).forEach(function(a){var e=a.parentNode;"A"===e.tagName&&(t.test(e.href)||r.test(e.href))&&(e.href=a.dataset.original)})});</script><script>(r=>{r.imageLazyLoadSetting.processImages=t;var a=r.imageLazyLoadSetting.isSPA,o=r.imageLazyLoadSetting.preloadRatio||1,d=i();function i(){var t=Array.prototype.slice.call(document.querySelectorAll("img[data-original]")),e=Array.prototype.slice.call(document.querySelectorAll("[bg-lazy]"));return t.concat(e)}function t(t){(a||t)&&(d=i());for(var e,n=0;n<d.length;n++)0<=(e=(e=d[n]).getBoundingClientRect()).bottom&&0<=e.left&&e.top<=(r.innerHeight*o||document.documentElement.clientHeight*o)&&(()=>{var t,e,a,o,i=d[n];e=function(){d=d.filter(function(t){return i!==t}),r.imageLazyLoadSetting.onImageLoaded&&r.imageLazyLoadSetting.onImageLoaded(i)},(t=i).dataset.loaded||(t.hasAttribute("bg-lazy")?(t.removeAttribute("bg-lazy"),e&&e()):(a=new Image,o=t.getAttribute("data-original"),a.onload=function(){t.src=o,t.removeAttribute("data-original"),t.setAttribute("data-loaded",!0),e&&e()},a.onerror=function(){t.removeAttribute("data-original"),t.setAttribute("data-loaded",!1),t.src=o},t.src!==o&&(a.src=o)))})()}function e(){clearTimeout(t.tId),t.tId=setTimeout(t,500)}t(),document.addEventListener("scroll",e),r.addEventListener("resize",e),r.addEventListener("orientationchange",e)})(this);</script></body></html>
